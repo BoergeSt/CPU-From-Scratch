@@ -206,6 +206,13 @@ Amaranth/debug-strategy items.
   now. Individual components may still be parametrized piece by piece later
   if desired — this isn't a ban on parameters generally, just a decision not
   to build the whole datapath generically around word size up front.
+- **ALU: purely combinational for Phase 1 — no `clock_i`/`reset_i`/enable.**
+  Matches the single-cycle core model: the ALU is stateless combinational
+  logic (op/operands in, result/flags out, same cycle); only the register
+  file/PC get clocked, capturing the ALU's output at the end of the cycle.
+  A registered/pipelined ALU (e.g. multi-cycle multiply/divide, pipeline
+  stages) is a deliberate future revision, not an oversight — see
+  "Multi-cycle/pipelined ALU & CPU" under Future directions above.
 
 ## Open / undecided — ask before assuming
 
