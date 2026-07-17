@@ -29,6 +29,18 @@ for the milestone itself).
 **Future directions — unordered, aspirational, not all guaranteed to
 happen:**
 - HW interrupts
+- Exception/trap handling (illegal opcode, div-by-zero, misaligned access,
+  etc.) — distinct from HW interrupts; needs a control-unit trap path +
+  handler dispatch that doesn't exist yet. First concrete trigger: the
+  Hydrogen ALU's reserved opcodes (0xC–0xF) currently fall through to the
+  `default:` case and silently return zero, with no diagnostic at all —
+  no real illegal-instruction exception exists yet.
+- Multi-level execution / privilege levels (ARM-style EL0/EL1/...,
+  secure/non-secure worlds) — ties into exception/trap handling above,
+  since real architectures typically raise privilege on a trap (e.g. a
+  syscall exception). Related to the Secure-boot-style PoC item below but
+  distinct: this is about runtime privilege separation, not boot-time
+  attestation.
 - Clock domain crossing / multi-clock design (already an explicit learning
   goal, see the "Single clock domain to start" decision below)
 - DMA
