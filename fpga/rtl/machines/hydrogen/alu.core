@@ -4,15 +4,23 @@ description: Hydrogen machine ALU (see docs/machines/hydrogen/alu.md)
 
 filesets:
   rtl:
+    depend:
+      - ":hydrogen:alu_if"
     files:
       - alu.sv
     file_type: systemVerilogSource
 
   tb_cocotb:
     files:
+      - tb/alu_tb_top.sv
       - tb/test_alu.py: {file_type: user, copyto: .}
+    file_type: systemVerilogSource
 
 targets:
+  # Needed so other cores can depend on `:hydrogen:alu` (see alu_if.core).
+  default:
+    filesets: [rtl]
+
   lint:
     filesets: [rtl]
     toplevel: alu
@@ -22,7 +30,7 @@ targets:
 
   sim:
     filesets: [rtl, tb_cocotb]
-    toplevel: alu
+    toplevel: alu_tb_top
     flow: sim
     flow_options:
       tool: verilator
@@ -34,7 +42,7 @@ targets:
   # dumping -- routine `sim` runs stay exactly as fast as before.
   sim-waves:
     filesets: [rtl, tb_cocotb]
-    toplevel: alu
+    toplevel: alu_tb_top
     flow: sim
     flow_options:
       tool: verilator

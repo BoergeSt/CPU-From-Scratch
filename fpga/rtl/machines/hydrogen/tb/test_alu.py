@@ -1,8 +1,8 @@
 """cocotb testbench for the Hydrogen ALU (see docs/machines/hydrogen/alu.md).
 
-The ALU is purely combinational (no clock/reset), so each test just drives
-operation_i/value1_i/value2_i and awaits a small delay for the combinational
-logic to settle before checking result_o/overflow_o.
+Purely combinational (no clock/reset): each test drives bus.operation/
+bus.value1/bus.value2, awaits a small settle delay, then checks
+bus.result/bus.overflow.
 """
 
 import cocotb
@@ -27,21 +27,21 @@ SETTLE_TIME = Timer(1, unit="ns")
 
 
 async def apply(dut, operation, value1, value2):
-    dut.operation_i.value = operation
-    dut.value1_i.value = value1
-    dut.value2_i.value = value2
+    dut.bus.operation.value = operation
+    dut.bus.value1.value = value1
+    dut.bus.value2.value = value2
     await SETTLE_TIME
 
 
 def check(dut, expected_result, expected_overflow, description):
-    actual_result = int(dut.result_o.value)
-    actual_overflow = int(dut.overflow_o.value)
+    actual_result = int(dut.bus.result.value)
+    actual_overflow = int(dut.bus.overflow.value)
     assert actual_result == expected_result, (
-        f"{description}: result_o = {actual_result:#010x}, "
+        f"{description}: bus.result = {actual_result:#010x}, "
         f"expected {expected_result:#010x}"
     )
     assert actual_overflow == expected_overflow, (
-        f"{description}: overflow_o = {actual_overflow}, "
+        f"{description}: bus.overflow = {actual_overflow}, "
         f"expected {expected_overflow}"
     )
 
@@ -60,7 +60,7 @@ SUB_CASES = [
     (10, 5, 5, 0, "simple sub, no underflow"),
     (5, 5, 0, 0, "equal operands, boundary of the overflow condition"),
     (0, 1, 0xFFFF_FFFF, 1, "underflow by one"),
-    (0, 0xFFFF_FFFF, 0x0000_0001, 1, "underflow, max value2_i"),
+    (0, 0xFFFF_FFFF, 0x0000_0001, 1, "underflow, max value2"),
     (0xFFFF_FFFF, 0xFFFF_FFFF, 0, 0, "max - max"),
     (0xFFFF_FFFF, 0, 0xFFFF_FFFF, 0, "subtract zero is identity"),
 ]
@@ -74,7 +74,7 @@ MUL_CASES = [
     (0xFFFF_FFFF, 0xFFFF_FFFF, 0x0000_0001, 1, "max * max"),
 ]
 
-# MULH never sets overflow_o -- it's the part MUL would otherwise drop.
+# MULH never sets bus.overflow -- it's the part MUL would otherwise drop.
 MULH_CASES = [
     (3, 4, 0, 0, "small product fits entirely in the low word"),
     (0, 0xFFFF_FFFF, 0, 0, "multiply by zero"),
@@ -85,7 +85,7 @@ MULH_CASES = [
 ]
 
 # LSHIFT overflow: for shift amount n<32, overflow iff the top n bits of
-# value1_i are nonzero; for n>=32, overflow iff value1_i != 0.
+# value1 are nonzero; for n>=32, overflow iff value1 != 0.
 LSHIFT_CASES = [
     (0x1, 4, 0x10, 0, "simple shift, no overflow"),
     (0x1234_5678, 0, 0x1234_5678, 0, "shift by zero is identity, never overflows"),
@@ -96,7 +96,7 @@ LSHIFT_CASES = [
     (0x5, 1000, 0, 1, "shift amount far beyond 32, nonzero operand"),
 ]
 
-# RSHIFT never sets overflow_o -- truncating a value via right shift isn't
+# RSHIFT never sets bus.overflow -- truncating a value via right shift isn't
 # data loss in the same sense as the other ops.
 RSHIFT_CASES = [
     (0x80, 4, 0x8, 0, "simple shift, no overflow"),
@@ -131,14 +131,14 @@ XOR_CASES = [
     (0xAAAA_AAAA, 0x5555_5555, 0xFFFF_FFFF, 0, "complementary bit patterns"),
 ]
 
-# NOT is unary -- value2_i is ignored, so the last two cases share value1_i
-# with different value2_i to confirm it has no effect on the result.
+# NOT is unary -- value2 is ignored, so the last two cases share value1
+# with different value2 to confirm it has no effect on the result.
 NOT_CASES = [
     (0x0, 0x0, 0xFFFF_FFFF, 0, "not zero is all-ones"),
     (0xFFFF_FFFF, 0x0, 0, 0, "not all-ones is zero"),
     (0x1234_5678, 0x0, 0xEDCB_A987, 0, "arbitrary value"),
-    (0xAAAA_AAAA, 0x0, 0x5555_5555, 0, "value2_i = 0 is ignored"),
-    (0xAAAA_AAAA, 0xFFFF_FFFF, 0x5555_5555, 0, "value2_i = all-ones is still ignored"),
+    (0xAAAA_AAAA, 0x0, 0x5555_5555, 0, "value2 = 0 is ignored"),
+    (0xAAAA_AAAA, 0xFFFF_FFFF, 0x5555_5555, 0, "value2 = all-ones is still ignored"),
 ]
 
 NAND_CASES = [
