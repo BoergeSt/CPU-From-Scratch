@@ -1,0 +1,29 @@
+CAPI=2:
+name: :hydrogen:alu
+description: Hydrogen machine ALU (see docs/machines/hydrogen/alu.md)
+
+filesets:
+  rtl:
+    files:
+      - alu.sv
+    file_type: systemVerilogSource
+
+  tb_cocotb:
+    files:
+      - tb/test_alu.py: {file_type: user, copyto: .}
+
+targets:
+  lint:
+    filesets: [rtl]
+    toplevel: alu
+    flow: lint
+    flow_options:
+      tool: verilator
+
+  sim:
+    filesets: [rtl, tb_cocotb]
+    toplevel: alu
+    flow: sim
+    flow_options:
+      tool: verilator
+      cocotb_module: test_alu
