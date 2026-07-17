@@ -9,6 +9,7 @@ module regfile (
     input logic rst_i,
     regfile_read_if.regfile read1,
     regfile_read_if.regfile read2,
+    regfile_read_if.regfile read3,
     regfile_write_if.regfile write
 );
   logic [7:0][31:0] registers;
@@ -16,6 +17,7 @@ module regfile (
   always_comb begin
     read1.data = registers[read1.addr];
     read2.data = registers[read2.addr];
+    read3.data = registers[read3.addr];
   end
 
   always_ff @(posedge clk_i) begin

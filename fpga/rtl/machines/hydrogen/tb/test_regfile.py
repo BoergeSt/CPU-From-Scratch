@@ -32,6 +32,7 @@ async def start(dut):
     dut.write.data.value = 0
     dut.read1.addr.value = 0
     dut.read2.addr.value = 0
+    dut.read3.addr.value = 0
     await RisingEdge(dut.clk_i)
     dut.rst_i.value = 0
     await SETTLE
@@ -57,6 +58,12 @@ async def read2(dut, addr):
     dut.read2.addr.value = addr
     await SETTLE
     return int(dut.read2.data.value)
+
+
+async def read3(dut, addr):
+    dut.read3.addr.value = addr
+    await SETTLE
+    return int(dut.read3.data.value)
 
 
 @cocotb.test()
@@ -120,8 +127,22 @@ async def test_write_read_back_all_registers_via_read2(dut):
 
 
 @cocotb.test()
+async def test_write_read_back_all_registers_via_read3(dut):
+    await start(dut)
+    values = {addr: make_value(addr, 0x7E57) for addr in range(NUM_REGS)}
+    for addr, value in values.items():
+        await write_reg(dut, addr, value)
+    for addr, value in values.items():
+        actual = await read3(dut, addr)
+        assert actual == value, (
+            f"R{addr} via read3 = {actual:#010x}, expected {value:#010x}"
+        )
+
+
+@cocotb.test()
 async def test_read_ports_independent_different_addresses(dut):
-    """read1/read2 addressed at two different registers don't interfere."""
+    """read1/read2/read3 addressed at three different registers don't
+    interfere with each other."""
     await start(dut)
     values = {addr: make_value(addr, 0x5A5A) for addr in range(NUM_REGS)}
     for addr, value in values.items():
@@ -129,22 +150,29 @@ async def test_read_ports_independent_different_addresses(dut):
 
     for addr1 in range(NUM_REGS):
         addr2 = (addr1 + 1) % NUM_REGS
+        addr3 = (addr1 + 2) % NUM_REGS
         dut.read1.addr.value = addr1
         dut.read2.addr.value = addr2
+        dut.read3.addr.value = addr3
         await SETTLE
         actual1 = int(dut.read1.data.value)
         actual2 = int(dut.read2.data.value)
+        actual3 = int(dut.read3.data.value)
         assert actual1 == values[addr1], (
             f"read1(R{addr1}) = {actual1:#010x}, expected {values[addr1]:#010x}"
         )
         assert actual2 == values[addr2], (
             f"read2(R{addr2}) = {actual2:#010x}, expected {values[addr2]:#010x}"
         )
+        assert actual3 == values[addr3], (
+            f"read3(R{addr3}) = {actual3:#010x}, expected {values[addr3]:#010x}"
+        )
 
 
 @cocotb.test()
 async def test_read_ports_agree_same_address(dut):
-    """read1/read2 addressed at the same register return identical data."""
+    """read1/read2/read3 addressed at the same register return identical
+    data."""
     await start(dut)
     values = {addr: make_value(addr, 0x1234) for addr in range(NUM_REGS)}
     for addr, value in values.items():
@@ -153,12 +181,14 @@ async def test_read_ports_agree_same_address(dut):
     for addr in range(NUM_REGS):
         dut.read1.addr.value = addr
         dut.read2.addr.value = addr
+        dut.read3.addr.value = addr
         await SETTLE
         actual1 = int(dut.read1.data.value)
         actual2 = int(dut.read2.data.value)
-        assert actual1 == actual2 == values[addr], (
+        actual3 = int(dut.read3.data.value)
+        assert actual1 == actual2 == actual3 == values[addr], (
             f"R{addr}: read1={actual1:#010x} read2={actual2:#010x} "
-            f"expected {values[addr]:#010x}"
+            f"read3={actual3:#010x} expected {values[addr]:#010x}"
         )
 
 

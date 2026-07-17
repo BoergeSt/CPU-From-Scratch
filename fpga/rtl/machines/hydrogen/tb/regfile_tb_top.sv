@@ -10,6 +10,7 @@ module regfile_tb_top (
 
   regfile_read_if read1 ();
   regfile_read_if read2 ();
+  regfile_read_if read3 ();
   regfile_write_if write ();
 
   regfile dut (
@@ -17,6 +18,7 @@ module regfile_tb_top (
       .rst_i(rst_i),
       .read1(read1),
       .read2(read2),
+      .read3(read3),
       .write(write)
   );
 
