@@ -285,12 +285,15 @@ docs/                  design notes / per-module & per-program docs, written
 
 ## Commit conventions
 
-Claude creates most commits directly (not just messages) — a standing
-exception to the general "only commit when explicitly asked" default;
-committing as part of normal work here doesn't need to be asked for each
-time. **This authorizes local commits only** — pushing to a remote is a
-separate, more impactful action and still requires asking first every time,
-per normal practice.
+**Wait for an explicit signal before committing.** Do the work, leave it
+staged/unstaged in the working tree, and wait — the repo owner will say when
+to commit. This supersedes Claude Code's general default of committing
+proactively as part of normal work: fixing a bad commit (rewriting history,
+untangling an amend) is friction the repo owner would rather avoid, so
+committing itself is treated as a deliberate, reviewed step, not an
+automatic one. Applies to local commits; pushing to a remote was already a
+separate, more-impactful action requiring its own ask every time, per normal
+practice.
 
 - **Style: Conventional Commits** — `type(scope): summary`, blank line, then
   a body explaining what changed and why. Types: `feat`, `fix`, `chore`,
