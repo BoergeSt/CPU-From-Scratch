@@ -250,9 +250,16 @@ the decision point if it becomes relevant.
 ```
 fpga/                 all RTL/verification side
   rtl/                  SystemVerilog sources, one module per file
-  tb/                   cocotb Python testbenches, one per rtl module
-  tb/formal/             SVA properties + sby configs (bus fabric, arbiters first)
-  sim/                   FuseSoC .core files, Verilator waivers
+  rtl/machines/<codename>/<module>.core   per-module FuseSoC core file, alongside
+                          its RTL -- FuseSoC deprecates fileset files living
+                          outside the directory containing the .core file
+  rtl/machines/<codename>/tb/  cocotb Python testbenches for that machine's
+                          modules, same reasoning -- nested with the RTL +
+                          .core file rather than a flat top-level tb/
+  tb/formal/             SVA properties + sby configs (bus fabric, arbiters
+                          first) -- cross-module, so stays top-level
+  sim/                   Verilator waivers only (per-module .core files live
+                          alongside their RTL, see above)
 software/              everything that runs ON the CPU, or builds things that do
   examples/              sample/test/diagnostic programs (ISA-agnostic placeholder
                           until the ISA decision below is made)
