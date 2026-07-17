@@ -12,6 +12,10 @@ fusesoc target core:
 # Stops after lint if it fails, since there's no point simulating broken RTL.
 check core: (fusesoc "lint" core) (fusesoc "sim" core)
 
+# Sim a core with FST waveform tracing enabled, e.g. `just waves :hydrogen:alu`.
+# Trace lands at build/<core>_0/sim-waves/dump.fst -- open with GTKWave/Surfer.
+waves core: (fusesoc "sim-waves" core)
+
 # List every FuseSoC core discoverable under fpga/rtl/machines
 core-list:
     podman run --rm --userns=keep-id -e HOME=/tmp -v "{{justfile_directory()}}":/work:Z -w /work fpga-toolchain:dev \
