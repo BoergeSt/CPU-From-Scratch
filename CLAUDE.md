@@ -363,6 +363,15 @@ practice.
   Claude implements the cocotb Python for exactly those. Don't proactively
   invent additional test cases or coverage beyond what was asked without
   flagging them first — propose, don't just add.
+- **Working order: I define module boundaries → Claude writes tests against
+  that interface → I implement the RTL to pass them.** Once a module's
+  ports/interface and the scenarios that matter are settled, Claude writes
+  the cocotb tests targeting that (not-yet-implemented) interface, and I
+  write the RTL against those tests, iterating locally until they pass. This
+  *authoring* order is independent of the *commit* order in Commit
+  conventions below (RTL commit, then a following tests commit, split along
+  the authorship boundary) — tests can exist and be iterated against well
+  before the commit that introduces them.
 - **Documentation authorship: Claude writes documentation, proactively,
   both inline and standalone.** This is a deliberate override of Claude
   Code's normal default of writing minimal/no comments. Once a module
