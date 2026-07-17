@@ -30,6 +30,28 @@ sim core:
 # Stops after lint if it fails, there's no point simulating broken RTL.
 check core: (lint core) (sim core)
 
+# Sim a core with line/branch/toggle coverage instrumentation (the core's
+# `coverage` target -- see e.g. regfile.core), then annotate the source
+# with per-line hit counts, e.g. `just coverage :hydrogen:regfile`. Same
+# FAIL>0 check as `sim`. Coverage is informative, not a pass/fail gate --
+# uncovered lines/toggles are lines in `annotated/*.sv` marked `%00`, not
+# necessarily a bug (e.g. untoggled register bits directed tests never
+# happened to exercise).
+coverage core:
+    #!/usr/bin/env sh
+    set -u
+    output=$(just _fusesoc "coverage" "{{core}}" 2>&1)
+    status=$?
+    printf '%s\n' "$output"
+    [ "$status" -ne 0 ] && exit "$status"
+    fail_count=$(printf '%s\n' "$output" | grep -oE 'FAIL=[0-9]+' | tail -1 | cut -d= -f2)
+    if [ -n "$fail_count" ] && [ "$fail_count" -ne 0 ]; then
+        exit 1
+    fi
+    dir="build/{{ replace(trim_start_match(core, ":"), ":", "_") }}_0/coverage"
+    podman run --rm --userns=keep-id -e HOME=/tmp -v "{{justfile_directory()}}":/work:Z -w /work/$dir fpga-toolchain:dev \
+        verilator_coverage --annotate annotated coverage.dat
+
 # Check every "checkable" core in one machine, e.g. `just check-machine
 # hydrogen`. "Checkable" means the core's .core file defines a `lint`
 # target -- skips dependency-only interface cores (e.g. alu_if), which have
@@ -76,6 +98,35 @@ check-all:
     failed=0
     for dir in fpga/rtl/machines/*/; do
         just check-machine "$(basename "$dir")" || failed=1
+    done
+    exit $failed
+
+# Run coverage for every "checkable" core in one machine, e.g.
+# `just coverage-machine hydrogen`. "Checkable" means the core's .core file
+# defines a `coverage` target -- same discovery pattern as check-machine.
+coverage-machine machine:
+    #!/usr/bin/env sh
+    set -u
+    failed=0
+    for core_file in fpga/rtl/machines/{{machine}}/*.core; do
+        name=$(basename "$core_file" .core)
+        grep -q '^  coverage:' "$core_file" || continue
+        printf '=== coverage :%s:%s ===\n' "{{machine}}" "$name"
+        just coverage ":{{machine}}:$name" || failed=1
+    done
+    exit $failed
+
+# Coverage for every core in the hydrogen machine.
+coverage-hydrogen: (coverage-machine "hydrogen")
+
+# Coverage for every core in every machine under fpga/rtl/machines/. Same
+# "stays correct as machines are added" reasoning as check-all.
+coverage-all:
+    #!/usr/bin/env sh
+    set -u
+    failed=0
+    for dir in fpga/rtl/machines/*/; do
+        just coverage-machine "$(basename "$dir")" || failed=1
     done
     exit $failed
 

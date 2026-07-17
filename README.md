@@ -40,5 +40,6 @@ repo conventions.
 just toolchain-build      # build the toolchain container (once, or after a version bump)
 just core-list            # list available FuseSoC cores
 just check :hydrogen:alu  # lint + simulate a core (always traces)
+just coverage :hydrogen:alu  # simulate with line/branch/toggle coverage, annotate source
 just view :hydrogen:alu   # open the last trace in Surfer
 ```

@@ -40,3 +40,17 @@ targets:
       cocotb_module: test_alu
       verilator_options: [--trace-fst]
       run_options: [--trace]
+
+  # Same sim, instrumented for line/branch/toggle coverage (CLAUDE.md's
+  # Coverage decision) -- kept separate from `sim` so everyday runs stay
+  # free of the coverage.dat side output. Drive via `just coverage`, which
+  # also runs verilator_coverage --annotate over the result.
+  coverage:
+    filesets: [rtl, tb_cocotb]
+    toplevel: alu_tb_top
+    flow: sim
+    flow_options:
+      tool: verilator
+      cocotb_module: test_alu
+      verilator_options: [--trace-fst, --coverage-line, --coverage-toggle]
+      run_options: [--trace]

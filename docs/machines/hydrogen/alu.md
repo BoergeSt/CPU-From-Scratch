@@ -5,6 +5,11 @@ generation, per the codename convention in `CLAUDE.md`).
 
 Status: **implemented** — `fpga/rtl/machines/hydrogen/alu.sv`, verified by
 `fpga/rtl/machines/hydrogen/tb/test_alu.py` (`just check :hydrogen:alu`).
+Line/branch/toggle coverage: `just coverage :hydrogen:alu`. Line coverage is
+expected to be short of 100% here: the reserved-opcode `default:` case (see
+CLAUDE.md's illegal-instruction-exception item under Future directions) has
+no directed test hitting it yet, since none exists to exercise the
+opcode-0xC–0xF path.
 
 ## Overview
 

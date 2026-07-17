@@ -110,8 +110,13 @@ Amaranth/debug-strategy items.
 - **Build/dependency management:** FuseSoC + Edalize, so the same core
   descriptions can later retarget from Verilator to a real toolchain (Vivado,
   or F4PGA/openXC7 for a fully open Xilinx flow) without rewrites.
-- **Coverage:** Verilator line/toggle coverage (`--coverage`); cocotb-coverage
-  for functional coverage once past initial bring-up.
+- **Coverage:** Verilator line/toggle coverage (`--coverage-line
+  --coverage-toggle`, exposed per-core as a `coverage` FuseSoC target
+  alongside `sim` — see e.g. `regfile.core` — and driven via
+  `just coverage`/`just coverage-machine`/`just coverage-all`); cocotb-coverage
+  for functional coverage once past initial bring-up. Deliberately not bare
+  `--coverage`, which also turns on Verilator's user/functional coverage (SVA
+  `cover` points) — that's left off until cocotb-coverage arrives instead.
 - **ISA: custom, not RISC-V — for now.** Chosen deliberately over RISC-V:
   RISC-V's toolchain/spec maturity is attractive but also means most of the
   hard problems (ISA design, encoding trade-offs, toolchain bring-up) are

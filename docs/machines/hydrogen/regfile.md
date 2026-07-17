@@ -5,7 +5,11 @@ generation, per the codename convention in `CLAUDE.md`).
 
 Status: **implemented** — `fpga/rtl/machines/hydrogen/regfile.sv`, verified
 by `fpga/rtl/machines/hydrogen/tb/test_regfile.py`
-(`just check :hydrogen:regfile`). The architectural register set itself
+(`just check :hydrogen:regfile`). Line/branch/toggle coverage:
+`just coverage :hydrogen:regfile` — toggle coverage is expected to be short
+of 100% since the directed tests don't necessarily drive every one of the
+256 storage bits through both transitions. The architectural register set
+itself
 (`R0`–`R7`, widths, "no hardwired zero") is defined in `isa.md` — this
 document specifies the RTL module boundary, interface, and behavior built
 around that architecture.
