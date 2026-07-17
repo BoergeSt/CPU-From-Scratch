@@ -1,0 +1,14 @@
+CAPI=2:
+name: :hydrogen:regfile_write_if
+description: Hydrogen machine register-file write port interface (see docs/machines/hydrogen/regfile.md)
+
+filesets:
+  rtl:
+    files:
+      - regfile_write_if.sv
+    file_type: systemVerilogSource
+
+targets:
+  # No toplevel/flow -- not directly runnable, only a dependency target.
+  default:
+    filesets: [rtl]

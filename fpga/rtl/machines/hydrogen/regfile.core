@@ -1,0 +1,43 @@
+CAPI=2:
+name: :hydrogen:regfile
+description: Hydrogen machine register file (see docs/machines/hydrogen/regfile.md)
+
+filesets:
+  rtl:
+    depend:
+      - ":hydrogen:regfile_read_if"
+      - ":hydrogen:regfile_write_if"
+    files:
+      - regfile.sv
+    file_type: systemVerilogSource
+
+  tb_cocotb:
+    files:
+      - tb/regfile_tb_top.sv
+      - tb/test_regfile.py: {file_type: user, copyto: .}
+    file_type: systemVerilogSource
+
+targets:
+  # Needed so other cores can depend on `:hydrogen:regfile` (see e.g. a
+  # future control-unit core).
+  default:
+    filesets: [rtl]
+
+  lint:
+    filesets: [rtl]
+    toplevel: regfile
+    flow: lint
+    flow_options:
+      tool: verilator
+
+  # Always built with FST waveform tracing enabled -- see alu.core's
+  # identical target.
+  sim:
+    filesets: [rtl, tb_cocotb]
+    toplevel: regfile_tb_top
+    flow: sim
+    flow_options:
+      tool: verilator
+      cocotb_module: test_regfile
+      verilator_options: [--trace-fst]
+      run_options: [--trace]
