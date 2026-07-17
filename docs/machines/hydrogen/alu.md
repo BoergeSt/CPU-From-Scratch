@@ -3,7 +3,8 @@
 Machine generation: **hydrogen** (H, atomic number 1 — first machine
 generation, per the codename convention in `CLAUDE.md`).
 
-Status: **design spec, not yet implemented.**
+Status: **implemented** — `fpga/rtl/machines/hydrogen/alu.sv`, verified by
+`fpga/rtl/machines/hydrogen/tb/test_alu.py` (`just check :hydrogen:alu`).
 
 ## Overview
 

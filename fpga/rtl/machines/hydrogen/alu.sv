@@ -1,3 +1,25 @@
+// Hydrogen machine ALU (v1) -- purely combinational, stateless: result_o and
+// overflow_o are pure functions of operation_i/value1_i/value2_i, valid
+// within the same cycle. No clock/reset port, matching the single-cycle
+// core model (see the "ALU: purely combinational for Phase 1" decision in
+// CLAUDE.md). All operands and results are unsigned.
+//
+// Full opcode table, flag semantics, and design rationale:
+// docs/machines/hydrogen/alu.md
+//
+// Ports:
+//   operation_i  4-bit opcode select. 0x0-0xB are real ops (see spec);
+//                0xC-0xF are reserved and fall through to a silent zero
+//                result via the default case (see CLAUDE.md's Future
+//                directions -- "Exception/trap handling" -- for the
+//                deferred illegal-opcode diagnostic this will need).
+//   value1_i     operand 1, unsigned.
+//   value2_i     operand 2, unsigned. Ignored by NOT (unary).
+//   result_o     result, unsigned.
+//   overflow_o   set when result_o does not equal the true mathematical
+//                result because information was discarded or wrapped;
+//                meaning is per-operation, see spec. Always 0 for the
+//                bitwise ops, MULH, and RSHIFT.
 module alu (
     input  logic [ 3:0] operation_i,
     input  logic [31:0] value1_i,
