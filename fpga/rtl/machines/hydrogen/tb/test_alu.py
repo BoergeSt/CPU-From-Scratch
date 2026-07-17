@@ -158,85 +158,33 @@ NOR_CASES = [
 ]
 
 
-@cocotb.test()
-async def test_add(dut):
-    for value1, value2, expected_result, expected_overflow, description in ADD_CASES:
-        await apply(dut, ADD, value1, value2)
-        check(dut, expected_result, expected_overflow, f"ADD({description})")
+# (name, opcode, cases) -- drives the dynamic test generation below.
+OPS = [
+    ("add", ADD, ADD_CASES),
+    ("sub", SUB, SUB_CASES),
+    ("mul", MUL, MUL_CASES),
+    ("mulh", MULH, MULH_CASES),
+    ("lshift", LSHIFT, LSHIFT_CASES),
+    ("rshift", RSHIFT, RSHIFT_CASES),
+    ("and", AND, AND_CASES),
+    ("or", OR, OR_CASES),
+    ("xor", XOR, XOR_CASES),
+    ("not", NOT, NOT_CASES),
+    ("nand", NAND, NAND_CASES),
+    ("nor", NOR, NOR_CASES),
+]
 
 
-@cocotb.test()
-async def test_sub(dut):
-    for value1, value2, expected_result, expected_overflow, description in SUB_CASES:
-        await apply(dut, SUB, value1, value2)
-        check(dut, expected_result, expected_overflow, f"SUB({description})")
+def _make_test(operation, cases, name):
+    async def _test(dut):
+        for value1, value2, expected_result, expected_overflow, description in cases:
+            await apply(dut, operation, value1, value2)
+            check(dut, expected_result, expected_overflow,
+                  f"{name.upper()}({description})")
+    _test.__name__ = f"test_{name}"
+    _test.__qualname__ = f"test_{name}"
+    return _test
 
 
-@cocotb.test()
-async def test_mul(dut):
-    for value1, value2, expected_result, expected_overflow, description in MUL_CASES:
-        await apply(dut, MUL, value1, value2)
-        check(dut, expected_result, expected_overflow, f"MUL({description})")
-
-
-@cocotb.test()
-async def test_mulh(dut):
-    for value1, value2, expected_result, expected_overflow, description in MULH_CASES:
-        await apply(dut, MULH, value1, value2)
-        check(dut, expected_result, expected_overflow, f"MULH({description})")
-
-
-@cocotb.test()
-async def test_lshift(dut):
-    for value1, value2, expected_result, expected_overflow, description in LSHIFT_CASES:
-        await apply(dut, LSHIFT, value1, value2)
-        check(dut, expected_result, expected_overflow, f"LSHIFT({description})")
-
-
-@cocotb.test()
-async def test_rshift(dut):
-    for value1, value2, expected_result, expected_overflow, description in RSHIFT_CASES:
-        await apply(dut, RSHIFT, value1, value2)
-        check(dut, expected_result, expected_overflow, f"RSHIFT({description})")
-
-
-@cocotb.test()
-async def test_and(dut):
-    for value1, value2, expected_result, expected_overflow, description in AND_CASES:
-        await apply(dut, AND, value1, value2)
-        check(dut, expected_result, expected_overflow, f"AND({description})")
-
-
-@cocotb.test()
-async def test_or(dut):
-    for value1, value2, expected_result, expected_overflow, description in OR_CASES:
-        await apply(dut, OR, value1, value2)
-        check(dut, expected_result, expected_overflow, f"OR({description})")
-
-
-@cocotb.test()
-async def test_xor(dut):
-    for value1, value2, expected_result, expected_overflow, description in XOR_CASES:
-        await apply(dut, XOR, value1, value2)
-        check(dut, expected_result, expected_overflow, f"XOR({description})")
-
-
-@cocotb.test()
-async def test_not(dut):
-    for value1, value2, expected_result, expected_overflow, description in NOT_CASES:
-        await apply(dut, NOT, value1, value2)
-        check(dut, expected_result, expected_overflow, f"NOT({description})")
-
-
-@cocotb.test()
-async def test_nand(dut):
-    for value1, value2, expected_result, expected_overflow, description in NAND_CASES:
-        await apply(dut, NAND, value1, value2)
-        check(dut, expected_result, expected_overflow, f"NAND({description})")
-
-
-@cocotb.test()
-async def test_nor(dut):
-    for value1, value2, expected_result, expected_overflow, description in NOR_CASES:
-        await apply(dut, NOR, value1, value2)
-        check(dut, expected_result, expected_overflow, f"NOR({description})")
+for _name, _opcode, _cases in OPS:
+    globals()[f"test_{_name}"] = cocotb.test()(_make_test(_opcode, _cases, _name))
