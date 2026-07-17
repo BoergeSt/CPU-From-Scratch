@@ -45,10 +45,10 @@ module flow_ctl (
   always_ff @(posedge clk_i) begin
     if (rst_i) begin
       pc <= ResetVector;
-    end else if (major_opcode != FlowCtlOpcode) begin
-      pc <= pc + 1;
     end else if (bus.error) begin
       pc <= ErrorVector;
+    end else if (major_opcode != FlowCtlOpcode) begin
+      pc <= pc + 1;
     end else begin
       unique case (operation)
         4'h0: begin  // NOP
