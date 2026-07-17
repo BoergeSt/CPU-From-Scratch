@@ -230,6 +230,43 @@ Amaranth/debug-strategy items.
   A registered/pipelined ALU (e.g. multi-cycle multiply/divide, pipeline
   stages) is a deliberate future revision, not an oversight — see
   "Multi-cycle/pipelined ALU & CPU" under Future directions above.
+- **Functional units receive the entire 32-bit fetched instruction word, not
+  pre-decoded fields.** Every functional unit (ALU, flow-control unit, and
+  future ones) gets the same raw `instr`/`opcode` bus every cycle and
+  self-detects relevance by comparing the top 4 bits against its own major
+  opcode internally, rather than a control unit pre-slicing per-unit ports
+  (`operation_i`, `r_i`, `imm_i`, ...) and synthesizing per-unit "not your
+  instruction" defaults. Chosen over narrower per-unit ports because the
+  instruction encoding has already changed shape multiple times during
+  design (operand positions, immediate widths) — under full broadcasting,
+  those changes stay internal to the one affected module's decode logic and
+  never touch a port list, a wiring site, or another module's tests; under
+  narrow ports, every such change would ripple through every module and doc
+  touching that field. The cost is real but different in kind: unused input
+  bits are free in synthesis (dead fanout gets pruned), but Verilator's
+  unused-signal lint will flag them, so waivers for that are expected and
+  belong in `fpga/sim/` per the repo conventions below. This does not apply
+  to `regfile` — its read/write ports stay narrow address+data ports
+  regardless, unrelated to this convention.
+- **Register-operand fields that need a regfile read sit at fixed bit
+  positions across every opcode, not wherever's locally convenient per
+  opcode.** Concretely (Hydrogen v1): three universal slots, `[2:0]`,
+  `[5:3]`, `[8:6]`, hold register-read operands regardless of major opcode —
+  an opcode uses as many of the three as it needs. This lets all three
+  shared regfile read ports be wired as permanent constant taps from those
+  instruction bits — no opcode-dependent address mux, anywhere, for any
+  current or future module. A destination/write register field being
+  consistently positioned (`[27:25]` in Hydrogen v1) falls out of the same
+  reasoning for the write side. The 3rd slot (`[8:6]`) is reserved this way
+  even for a register field only one opcode currently uses (e.g. a jump
+  target) — the point is to avoid ever needing per-opcode arbitration for a
+  shared read port again, not just to fix what's already shared today.
+  A field genuinely reused across multiple modes of the *same* opcode
+  (e.g. an immediate value overlapping a register-select field that's only
+  meaningful in a different mode) is fine — the fixed *position* still
+  holds, only its mode-dependent interpretation varies, and reading a
+  register whose result ends up unused is free and already normal (see
+  `flow_ctl.md`'s `val2` handling).
 
 ## Open / undecided — ask before assuming
 
