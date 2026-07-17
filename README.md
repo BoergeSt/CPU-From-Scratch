@@ -10,13 +10,14 @@ repo conventions.
   (Verilator, Yosys, SymbiYosys, Verible, FuseSoC/Edalize, cocotb). Nothing
   in the batch/CLI flow is installed on the host directly.
 - **[just](https://github.com/casey/just)** — thin command runner wrapping
-  the container/FuseSoC invocations (`just check`, `just waves`,
+  the container/FuseSoC invocations (`just check`, `just sim`,
   `just toolchain-build`, ...). Run `just --list` for all recipes.
 
 ## Optional tools
 
 - **[Surfer](https://surfer-project.org/)** — waveform viewer for the
-  `.fst` traces produced by `just waves <core>`. Not published on
+  `.fst` traces produced by `just sim <core>` (always traced, see the cores'
+  `sim` target). Not published on
   crates.io under a usable name (`surfer` on crates.io is an unrelated
   crate) — install straight from the project's GitLab repo:
 
@@ -38,6 +39,6 @@ repo conventions.
 ```sh
 just toolchain-build      # build the toolchain container (once, or after a version bump)
 just core-list            # list available FuseSoC cores
-just check :hydrogen:alu  # lint + simulate a core
-just waves :hydrogen:alu  # simulate with FST tracing, then open the dump in Surfer/GTKWave
+just check :hydrogen:alu  # lint + simulate a core (always traces)
+just view :hydrogen:alu   # open the last trace in Surfer
 ```

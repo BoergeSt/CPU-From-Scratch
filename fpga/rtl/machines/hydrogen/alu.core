@@ -28,19 +28,10 @@ targets:
     flow_options:
       tool: verilator
 
+  # Always built with FST waveform tracing enabled -- measured no detectable
+  # cost from leaving it on, so there's no separate untraced target to keep
+  # in sync.
   sim:
-    filesets: [rtl, tb_cocotb]
-    toplevel: alu_tb_top
-    flow: sim
-    flow_options:
-      tool: verilator
-      cocotb_module: test_alu
-
-  # Same as `sim`, but built with FST waveform tracing enabled. Kept as a
-  # separate target rather than added to `sim` unconditionally, since the
-  # trace instrumentation has a small always-on cost even when not actively
-  # dumping -- routine `sim` runs stay exactly as fast as before.
-  sim-waves:
     filesets: [rtl, tb_cocotb]
     toplevel: alu_tb_top
     flow: sim
