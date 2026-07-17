@@ -304,21 +304,37 @@ practice.
   `fix(bus-arbiter)`); fall back to a top-level area (`fpga`, `software`,
   `docs`, `scripts`, `repo`, `ci`) only when the change is genuinely
   cross-cutting and doesn't belong to one module.
-- **Trailers, based on who wrote the diff content:**
-  - `--signoff` (adds `Signed-off-by: <your git identity>`) on commits
-    containing content you wrote.
-  - `Assisted-By: Claude <...>` trailer on commits containing content Claude
-    wrote.
+- **Trailers, based on who wrote the diff content and what's actually been
+  reviewed:**
+  - `--signoff` (adds `Signed-off-by: <your git identity>`) is a DCO-style
+    attestation — it means you've reviewed the content closely enough to
+    vouch for it (including that it's fine to use, license-wise). Always
+    add it to commits containing content you wrote yourself.
+  - `Assisted-By: Claude <...>` trailer on commits containing content
+    Claude wrote. By default this is the *only* trailer on such a commit —
+    don't add `Signed-off-by` too just because you're the one running
+    `git commit`; routine review isn't the scrutiny `Signed-off-by`
+    implies, and you're not vouching for content (e.g. licensing) you
+    haven't checked that closely.
+  - Both trailers together are fine on a single commit, but only when you
+    say so explicitly for that commit (e.g. you've reviewed a mixed or
+    Claude-authored commit closely enough to personally sign off on it) —
+    this is a deliberate exception, not the default.
   - Since Claude commits under your local git identity, `--signoff` always
     stamps your name regardless — it's the trailer's *presence*, not a
     different name, that signals authorship here.
-- **Split commits along the authorship boundary.** Don't combine your
-  hand-written code with Claude-written content (tests, docs) into one
-  commit just because they're part of the same logical change — commit them
-  separately (e.g. your ALU RTL as one commit, Claude's cocotb tests for it
-  as the next commit), even if that means several commits landing
-  back-to-back for one feature. Every commit gets exactly one trailer type,
-  never both.
+- **Split commits along the authorship boundary, unless that would break
+  buildability.** Don't combine your hand-written code with Claude-written
+  content (tests, docs) into one commit just because they're part of the
+  same logical change — commit them separately (e.g. your ALU RTL as one
+  commit, Claude's cocotb tests for it as the next commit), even if that
+  means several commits landing back-to-back for one feature. Exception:
+  the "every commit must build" rule below takes priority over this split
+  — if splitting would leave an intermediate commit unable to build/pass
+  tests (e.g. retrofitting a module to a new interface, where the RTL
+  change and its supporting test/build/doc updates are only buildable
+  together), bundle everything needed into one commit instead, and pick
+  trailers per the rule above based on what was actually reviewed.
 - **Commits must be atomic.** Each commit does exactly one logical thing —
   don't bundle unrelated changes even if they happened in the same session.
   Split further than the authorship boundary above if a single
