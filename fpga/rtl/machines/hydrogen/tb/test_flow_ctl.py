@@ -325,6 +325,20 @@ async def test_error_forces_error_vector(dut):
 
 
 @cocotb.test()
+async def test_error_forces_error_vector_even_for_non_flow_ctl_major_opcode(dut):
+    """error_i overrides self-detection too -- flow_ctl.md's priority order
+    puts error_i above the condition/fall-through step, and major-opcode
+    self-detection is part of that step, not a separate bypass."""
+    await start(dut)
+    opcode = make_opcode(ALWAYS, r=0, i=0, major_opcode=OTHER_MAJOR_OPCODE)
+    pc_after = await step(dut, opcode, error=1)
+    assert pc_after == ERROR_VECTOR, (
+        f"bus.pc = {pc_after:#010x} with error_i=1 during a non-FLOW_CTL "
+        f"major opcode, expected ErrorVector {ERROR_VECTOR:#010x}"
+    )
+
+
+@cocotb.test()
 async def test_reset_overrides_error_and_condition(dut):
     """rst_i wins even over a simultaneous error_i + taken jump."""
     await start(dut)
