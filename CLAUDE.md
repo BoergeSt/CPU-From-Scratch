@@ -397,3 +397,11 @@ practice.
   docs/ covering design intent/rationale — without waiting to be asked each
   time. I'll review and edit afterward; that's expected, not a signal to stop
   doing this proactively.
+- **Inline comments: terse, no restating canonical info.** The override
+  above is for genuinely new explanation (why, not what) — it's not
+  license to re-describe a signal's width/direction/purpose in every file
+  that touches it. If a field is already documented in its canonical
+  source (the interface/module that declares it, or the standalone
+  `docs/` spec), point to that source in one line instead of repeating
+  the description. Restating the same table in the interface file, the
+  module that uses it, and the doc isn't thorough, it's noise.
