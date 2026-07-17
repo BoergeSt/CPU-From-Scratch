@@ -1,8 +1,9 @@
 """cocotb testbench for the Hydrogen ALU (see docs/machines/hydrogen/alu.md).
 
-Purely combinational (no clock/reset): each test drives bus.operation/
+Purely combinational (no clock/reset): each test drives bus.opcode (the
+entire 32-bit fetched instruction word, see isa.md's ALU encoding)/
 bus.value1/bus.value2, awaits a small settle delay, then checks
-bus.result/bus.overflow.
+bus.result/bus.overflow/bus.error.
 """
 
 import cocotb
@@ -23,19 +24,38 @@ NOR = 0xB
 
 MASK32 = 0xFFFF_FFFF
 
+ALU_MAJOR_OPCODE = 0x0
+IMM_MASK = 0x1FFF  # 13 bits
+
 SETTLE_TIME = Timer(1, unit="ns")
 
 
-async def apply(dut, operation, value1, value2):
-    dut.bus.operation.value = operation
+def make_opcode(alu_op, is_imm_src1=0, is_imm_src2=0, imm=0):
+    """Assemble the 32-bit ALU instruction word (isa.md): major opcode
+    [31:28]=ALU, alu_op [24:21], is_imm_src1 [20], is_imm_src2 [19],
+    imm [18:6]. dest/src1_addr/src2_addr [27:25]/[5:3]/[2:0] are left 0 --
+    the ALU module itself doesn't consume them, only regfile address
+    routing (outside this module) does."""
+    return (
+        (ALU_MAJOR_OPCODE & 0xF) << 28
+        | (alu_op & 0xF) << 21
+        | (is_imm_src1 & 0x1) << 20
+        | (is_imm_src2 & 0x1) << 19
+        | (imm & IMM_MASK) << 6
+    )
+
+
+async def apply(dut, operation, value1, value2, is_imm_src1=0, is_imm_src2=0, imm=0):
+    dut.bus.opcode.value = make_opcode(operation, is_imm_src1, is_imm_src2, imm)
     dut.bus.value1.value = value1
     dut.bus.value2.value = value2
     await SETTLE_TIME
 
 
-def check(dut, expected_result, expected_overflow, description):
+def check(dut, expected_result, expected_overflow, description, expected_error=0):
     actual_result = int(dut.bus.result.value)
     actual_overflow = int(dut.bus.overflow.value)
+    actual_error = int(dut.bus.error.value)
     assert actual_result == expected_result, (
         f"{description}: bus.result = {actual_result:#010x}, "
         f"expected {expected_result:#010x}"
@@ -43,6 +63,9 @@ def check(dut, expected_result, expected_overflow, description):
     assert actual_overflow == expected_overflow, (
         f"{description}: bus.overflow = {actual_overflow}, "
         f"expected {expected_overflow}"
+    )
+    assert actual_error == expected_error, (
+        f"{description}: bus.error = {actual_error}, expected {expected_error}"
     )
 
 
@@ -188,3 +211,72 @@ def _make_test(operation, cases, name):
 
 for _name, _opcode, _cases in OPS:
     globals()[f"test_{_name}"] = cocotb.test()(_make_test(_opcode, _cases, _name))
+
+
+RESERVED_OPCODES = [0xC, 0xD, 0xE, 0xF]
+
+RESERVED_OPERAND_CASES = [
+    (0, 0, "all-zero operands"),
+    (0xFFFF_FFFF, 0xFFFF_FFFF, "all-ones operands"),
+    (0x1234_5678, 0x8765_4321, "arbitrary operands"),
+]
+
+
+@cocotb.test()
+async def test_reserved_opcodes_flag_error(dut):
+    """Every reserved opcode (0xC-0xF) drives bus.result=0, bus.overflow=0,
+    bus.error=1 regardless of operands -- see alu.md's Errors section and
+    CLAUDE.md's illegal-instruction-exception item."""
+    for opcode in RESERVED_OPCODES:
+        for value1, value2, description in RESERVED_OPERAND_CASES:
+            await apply(dut, opcode, value1, value2)
+            check(
+                dut, 0, 0,
+                f"reserved opcode {opcode:#x} ({description})",
+                expected_error=1,
+            )
+
+
+# (imm, other_operand, expected_result, description)
+IMM_SRC1_CASES = [
+    (0, 50, 50, "imm=0 as src1"),
+    (100, 50, 150, "arbitrary imm as src1"),
+    (0x1FFF, 1, 0x2000, "max 13-bit imm (8191) as src1, zero-extended"),
+]
+
+IMM_SRC2_CASES = [
+    (50, 0, 50, "imm=0 as src2"),
+    (50, 100, 150, "arbitrary imm as src2"),
+    (1, 0x1FFF, 0x2000, "max 13-bit imm (8191) as src2, zero-extended"),
+]
+
+
+@cocotb.test()
+async def test_imm_as_src1(dut):
+    """is_imm_src1=1 substitutes `imm` for value1 -- bus.value1 (the raw
+    register read) is ignored/don't-care in this case."""
+    for imm, value2, expected_result, description in IMM_SRC1_CASES:
+        await apply(dut, ADD, 0xDEAD_BEEF, value2, is_imm_src1=1, imm=imm)
+        check(dut, expected_result, 0, f"ADD(imm src1, {description})")
+
+
+@cocotb.test()
+async def test_imm_as_src2(dut):
+    """is_imm_src2=1 substitutes `imm` for value2 -- bus.value2 (the raw
+    register read) is ignored/don't-care in this case."""
+    for value1, imm, expected_result, description in IMM_SRC2_CASES:
+        await apply(dut, ADD, value1, 0xDEAD_BEEF, is_imm_src2=1, imm=imm)
+        check(dut, expected_result, 0, f"ADD(imm src2, {description})")
+
+
+@cocotb.test()
+async def test_imm_operand_order_preserved_for_sub(dut):
+    """SUB is order-sensitive -- confirms an immediate substituted for src1
+    vs src2 lands on the correct side of the subtraction, not just that
+    *some* substitution happened (ADD alone can't catch a swapped operand
+    order, since it's commutative)."""
+    await apply(dut, SUB, 0xDEAD_BEEF, 30, is_imm_src1=1, imm=100)
+    check(dut, 70, 0, "SUB(imm src1=100, value2=30), expect 100-30")
+
+    await apply(dut, SUB, 100, 0xDEAD_BEEF, is_imm_src2=1, imm=30)
+    check(dut, 70, 0, "SUB(value1=100, imm src2=30), expect 100-30")
