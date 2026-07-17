@@ -31,8 +31,9 @@ Concretely out of scope for this module:
   for PC. Combined with `isa.md`'s relative-jump semantics, which keep any
   PC arithmetic internal to the future flow-control unit, there is no
   shared datapath between the PC and `R0`–`R7` that would justify placing
-  them in the same module. The PC's own module boundary is a separate,
-  not-yet-decided question.
+  them in the same module. The PC's own module boundary is now decided: it
+  lives in the flow-control unit as internal register state, alongside the
+  address arithmetic that operates on it — see `flow_ctl.md`.
 - **The immediate-flag operand encoding.** `isa.md`'s `src1`/`src2` fields
   are 4 bits (immediate flag + 3-bit payload); this module's read ports only
   understand plain 3-bit register indices. Deciding between "read register
@@ -60,11 +61,13 @@ required before register contents are architecturally defined.
 
 ### Read port (`regfile_read_if`)
 
-One reusable interface type, instantiated **twice** (`read1`, `read2` in
-`regfile.sv`) — both instances are functionally identical. Named generically
-rather than after the ALU's `src1`/`src2` operand roles (`isa.md`), since a
-future consumer (e.g. the flow-control unit) may use these ports for
-something other than ALU operands.
+One reusable interface type, instantiated **three times** (`read1`, `read2`,
+`read3` in `regfile.sv`) — all three instances are functionally identical.
+Named generically rather than after the ALU's `src1`/`src2` operand roles
+(`isa.md`), since a consumer other than the ALU can use these ports for
+something else entirely — concretely, `read3` is claimed by the flow-control
+unit's register-indirect jump target (`goto_i` in `flow_ctl.md`), not an ALU
+operand at all.
 
 | Field | Dir (from `regfile` modport) | Width | Description |
 |-------|-------------------------------|-------|--------------|
@@ -138,8 +141,9 @@ than one bundle spanning both — see Design rationale.
   read-only consumer should only need to know the read-port shape, not be
   handed write-capable signals it can never legally drive. The split also
   scales cleanly with `isa.md`'s port-count note ("2 reads + 1 write" is
-  literally 2 instances of one reusable type + 1 of another) — a future
-  core variant needing a 3rd read port is one more instantiation, not an
+  literally 2 instances of one reusable type + 1 of another) — confirmed by
+  `read3`: the flow-control unit's need for a 3rd read port (`flow_ctl.md`)
+  turned out to be exactly one more instantiation of `regfile_read_if`, no
   interface redefinition.
 - **Combinational reads, synchronous writes** — forced by the single-cycle
   core model already committed to for the combinational ALU; see Behavior.
@@ -153,9 +157,6 @@ than one bundle spanning both — see Design rationale.
 
 ## Deferred / future ideas (explicitly out of scope for v1)
 
-- **PC's own module boundary and interface** — not decided. May end up as
-  its own small module, or folded into the future control unit; see
-  Overview.
 - **Immediate-flag operand decode / ALU operand mux** — future control-unit
   territory, per `isa.md`'s `src1`/`src2` encoding.
 - **`alu_if` `requester` role** — still open per `alu.md`; not resolved by
