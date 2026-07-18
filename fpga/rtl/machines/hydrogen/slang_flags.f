@@ -1,0 +1,9 @@
+fpga/rtl/machines/hydrogen/isa_pkg.sv
+fpga/rtl/machines/hydrogen/alu_if.sv
+fpga/rtl/machines/hydrogen/flow_ctl_if.sv
+fpga/rtl/machines/hydrogen/regfile_read_if.sv
+fpga/rtl/machines/hydrogen/regfile_write_if.sv
+fpga/rtl/machines/hydrogen/alu.sv
+fpga/rtl/machines/hydrogen/alu_status.sv
+fpga/rtl/machines/hydrogen/flow_ctl.sv
+fpga/rtl/machines/hydrogen/regfile.sv

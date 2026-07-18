@@ -1,0 +1,3 @@
+{
+  "flags": "-f fpga/rtl/machines/hydrogen/slang_flags.f"
+}
