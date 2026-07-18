@@ -1,0 +1,54 @@
+CAPI=2:
+name: :hydrogen:alu_status
+description: Hydrogen machine ALU status latch (see docs/machines/hydrogen/alu_status.md)
+
+filesets:
+  rtl:
+    files:
+      - alu_status.sv
+    file_type: systemVerilogSource
+
+  tb_cocotb:
+    files:
+      - tb/test_alu_status.py: {file_type: user, copyto: .}
+    file_type: systemVerilogSource
+
+targets:
+  # Needed so other cores can depend on `:hydrogen:alu_status` (see e.g. a
+  # future control-unit core).
+  default:
+    filesets: [rtl]
+
+  lint:
+    filesets: [rtl]
+    toplevel: alu_status
+    flow: lint
+    flow_options:
+      tool: verilator
+
+  # Always built with FST waveform tracing enabled -- see alu.core's
+  # identical target. Flat ports only (no interface), so the DUT itself is
+  # the toplevel -- no _tb_top wrapper needed, unlike alu/flow_ctl/regfile.
+  sim:
+    filesets: [rtl, tb_cocotb]
+    toplevel: alu_status
+    flow: sim
+    flow_options:
+      tool: verilator
+      cocotb_module: test_alu_status
+      verilator_options: [--trace-fst]
+      run_options: [--trace]
+
+  # Same sim, instrumented for line/branch/toggle coverage (CLAUDE.md's
+  # Coverage decision) -- kept separate from `sim` so everyday runs stay
+  # free of the coverage.dat side output. Drive via `just coverage`, which
+  # also runs verilator_coverage --annotate over the result.
+  coverage:
+    filesets: [rtl, tb_cocotb]
+    toplevel: alu_status
+    flow: sim
+    flow_options:
+      tool: verilator
+      cocotb_module: test_alu_status
+      verilator_options: [--trace-fst, --coverage-line, --coverage-toggle]
+      run_options: [--trace]
