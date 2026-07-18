@@ -69,25 +69,27 @@ something else entirely — concretely, `read3` is claimed by the flow-control
 unit's register-indirect jump target (`goto_i` in `flow_ctl.md`), not an ALU
 operand at all.
 
-| Field | Dir (from `regfile` modport) | Width | Description |
-|-------|-------------------------------|-------|--------------|
-| `addr` | in  | 3  | Register index `R0`–`R7` to read |
-| `data` | out | 32 | Current value of the addressed register — combinational, no clock involved |
+| Field | Dir | Width | Description |
+|-------|-----|-------|--------------|
+| `addr` | in  | 3 (`reg_addr_e`) | Register index `R0`–`R7` to read |
+| `data` | out | 32 | Current value of the addressed register |
 
-The mirrored `requester` modport reverses both directions, matching the
-`alu`/`requester` pattern already established by `alu_if`.
+(Dir is from the `regfile` modport.) `data` is combinational, no clock
+involved. The mirrored `requester` modport reverses both directions,
+matching the `alu`/`requester` pattern already established by `alu_if`.
 
 ### Write port (`regfile_write_if`)
 
 One instance.
 
-| Field | Dir (from `regfile` modport) | Width | Description |
-|-------|-------------------------------|-------|--------------|
-| `addr` | in | 3 | Register index `R0`–`R7` to write |
+| Field | Dir | Width | Description |
+|-------|-----|-------|--------------|
+| `addr` | in | 3 (`reg_addr_e`) | Register index `R0`–`R7` to write |
 | `data` | in | 32 | Value to write |
 | `write_en` | in | 1 | Write enable — see Behavior |
 
-Same mirrored-modport pattern as the read port.
+(Dir is from the `regfile` modport.) Same mirrored-modport pattern as the
+read port.
 
 Two separate interface types (2 read instances + 1 write instance) rather
 than one bundle spanning both — see Design rationale.

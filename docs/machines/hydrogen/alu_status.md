@@ -3,11 +3,9 @@
 Machine generation: **hydrogen** (H, atomic number 1 — first machine
 generation, per the codename convention in `CLAUDE.md`).
 
-Status: **specified, not yet implemented.** Planned RTL:
-`fpga/rtl/machines/hydrogen/alu_status.sv`, tests:
-`fpga/rtl/machines/hydrogen/tb/test_alu_status.py`. Nothing here exists in
-RTL yet; this document captures the module boundary agreed on before
-implementation, same working order as `flow_ctl.md`.
+Status: **implemented** — `fpga/rtl/machines/hydrogen/alu_status.sv`,
+verified by `fpga/rtl/machines/hydrogen/tb/test_alu_status.py`
+(`just check :hydrogen:alu_status`).
 
 ## Overview
 
@@ -35,14 +33,25 @@ is even an `ALU` instruction, rather than something external telling it so.
 |-------|-----|-------|--------------|
 | `clk_i` | in | 1 | Clock |
 | `rst_i` | in | 1 | Synchronous active-high reset; `overflow_o <= 0` |
-| `opcode_i` | in | 32 | Entire fetched instruction word — same value the ALU and flow-control unit receive, used here only to self-detect `ALU` cycles (`opcode_i[31:28] == 4'h0`) |
-| `overflow_i` | in | 1 | The ALU's live `bus.overflow`, wired directly from `alu.sv` — combinational, present every cycle regardless of which instruction is actually active |
-| `overflow_o` | out | 1 | Registered, latched flag — feeds `flow_ctl`'s `overflow_i` |
+| `instruction` | in | 32 (`instr_t`) | Entire fetched instruction word |
+| `overflow_i` | in | 1 | The ALU's live `bus.overflow` |
+| `overflow_o` | out | 1 | Registered, latched flag |
+
+`instruction` is the same value the ALU and flow-control unit receive,
+used here only to self-detect `ALU` cycles (`instruction.generic.ic ==
+IC_ALU`). `overflow_i` is wired directly from `alu.sv` — combinational,
+present every cycle regardless of which instruction is actually active.
+`overflow_o` feeds `flow_ctl`'s `overflow_i`.
+
+`instruction` is typed `isa_pkg::instr_t`, so the port list needs the
+package's types in scope — this module's `import isa_pkg::*;` sits in the
+module header, not the body (see `isa.md`'s SV implementation section for
+why that placement is required here specifically).
 
 ## Behavior
 
 ```
-is_alu = (opcode_i[31:28] == AluOpcode)   // 4'h0, isa.md
+is_alu = (instruction.generic.ic == IC_ALU)   // isa.md
 ```
 
 Every rising `clk_i` edge:
@@ -78,8 +87,8 @@ Every rising `clk_i` edge:
   need a central decoder to tell it when to update, it can self-detect
   exactly the same way, so there's no longer a reason to route it through
   anything central at all.
-- **Self-detects via `opcode_i[31:28]`, not an external enable.** Same
-  pattern as `alu.md`/`flow_ctl.md` — consistent with `CLAUDE.md`'s
+- **Self-detects via `instruction.generic.ic`, not an external enable.**
+  Same pattern as `alu.md`/`flow_ctl.md` — consistent with `CLAUDE.md`'s
   functional-units-get-the-whole-instruction decision, and means nothing
   else in the system needs to know this module exists in order to drive it
   correctly.
@@ -95,7 +104,5 @@ Every rising `clk_i` edge:
 
 - **Multi-flag status register** (zero, negative, carry, beyond just
   `overflow`) — this module's name already anticipates outgrowing a single
-  bit; cross-references `alu.md`'s own deferred `flags_o` struct idea.
+  bit; cross-references `isa.md`'s own deferred flags-struct idea.
   Premature with only `overflow` consumed by anything so far.
-- **`AluOpcode` as a named constant** rather than a bare literal — an
-  implementation detail for whenever the RTL is written.
