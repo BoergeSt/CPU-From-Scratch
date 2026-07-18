@@ -346,25 +346,20 @@ practice.
   `fix(bus-arbiter)`); fall back to a top-level area (`fpga`, `software`,
   `docs`, `scripts`, `repo`, `ci`) only when the change is genuinely
   cross-cutting and doesn't belong to one module.
-- **Trailers, based on who wrote the diff content and what's actually been
-  reviewed:**
-  - `--signoff` (adds `Signed-off-by: <your git identity>`) is a DCO-style
-    attestation — it means you've reviewed the content closely enough to
-    vouch for it (including that it's fine to use, license-wise). Always
-    add it to commits containing content you wrote yourself.
-  - `Assisted-By: Claude <...>` trailer on commits containing content
-    Claude wrote. By default this is the *only* trailer on such a commit —
-    don't add `Signed-off-by` too just because you're the one running
-    `git commit`; routine review isn't the scrutiny `Signed-off-by`
-    implies, and you're not vouching for content (e.g. licensing) you
-    haven't checked that closely.
-  - Both trailers together are fine on a single commit, but only when you
-    say so explicitly for that commit (e.g. you've reviewed a mixed or
-    Claude-authored commit closely enough to personally sign off on it) —
-    this is a deliberate exception, not the default.
-  - Since Claude commits under your local git identity, `--signoff` always
-    stamps your name regardless — it's the trailer's *presence*, not a
-    different name, that signals authorship here.
+- **Trailers: always `--signoff`; stack `Assisted-By` on top when Claude
+  wrote part of the diff.**
+  - `--signoff` (adds `Signed-off-by: <your git identity>`) goes on every
+    commit unconditionally, regardless of who wrote the content. Since
+    Claude commits under your local git identity, it always stamps your
+    name regardless of who ran `git commit`.
+  - `Assisted-By: Claude <...>` trailer additionally goes on any commit
+    containing content Claude wrote (RTL, tests, build/`.core` files,
+    docs, ...). The two trailers stack — `Assisted-By` doesn't replace
+    `--signoff`, it's added alongside it. A commit with zero
+    Claude-written content just gets `--signoff` alone.
+  - (Superseded an earlier default of `Assisted-By`-only, no `Signed-off-by`,
+    on Claude-authored commits — revised because the repo owner wants
+    `--signoff` unconditional going forward.)
 - **Split commits along the authorship boundary, unless that would break
   buildability.** Don't combine your hand-written code with Claude-written
   content (tests, docs) into one commit just because they're part of the
