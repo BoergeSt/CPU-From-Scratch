@@ -4,11 +4,11 @@ docs/machines/hydrogen/flow_ctl.md).
 Synchronous, active-high reset; `bus.pc` is registered. Each test starts its
 own clock and drives its own reset to a known state (pc = ResetVector),
 since the DUT's pc persists across tests within one simulation run.
-Register-operand *addressing* ([2:0]/[5:3]/[8:6] of bus.opcode) is outside
+Register-operand *addressing* ([2:0]/[5:3]/[8:6] of bus.instruction) is outside
 this module's own scope (CLAUDE.md's fixed-register-position decision --
 regfile reads are resolved system-wide, not by this module) so tests drive
 bus.value1/bus.value2/bus.goto directly, as if already resolved, and leave
-those bit positions in bus.opcode as don't-care (0).
+those bit positions in bus.instruction as don't-care (0).
 """
 
 import cocotb
@@ -59,7 +59,7 @@ async def start(dut):
     """Start the clock and drive one synchronous reset cycle (POR)."""
     cocotb.start_soon(Clock(dut.clk_i, CLOCK_PERIOD_NS, unit="ns").start())
     dut.rst_i.value = 1
-    dut.bus.opcode.value = 0
+    dut.bus.instruction.value = 0
     dut.bus.value1.value = 0
     dut.bus.value2.value = 0
     dut.bus.goto_val.value = 0
@@ -73,7 +73,7 @@ async def start(dut):
 async def step(dut, opcode, value1=0, value2=0, goto=0, overflow=0, error=0):
     """Drive one cycle's inputs, advance past the rising edge, return the
     resulting bus.pc."""
-    dut.bus.opcode.value = opcode
+    dut.bus.instruction.value = opcode
     dut.bus.value1.value = value1
     dut.bus.value2.value = value2
     dut.bus.goto_val.value = goto
@@ -343,7 +343,7 @@ async def test_reset_overrides_error_and_condition(dut):
     """rst_i wins even over a simultaneous error_i + taken jump."""
     await start(dut)
     dut.rst_i.value = 1
-    dut.bus.opcode.value = make_opcode(ALWAYS, r=0, i=1, imm=0x1234)
+    dut.bus.instruction.value = make_opcode(ALWAYS, r=0, i=1, imm=0x1234)
     dut.bus.error.value = 1
     await RisingEdge(dut.clk_i)
     dut.rst_i.value = 0

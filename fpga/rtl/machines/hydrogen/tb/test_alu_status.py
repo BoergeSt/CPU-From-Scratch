@@ -29,7 +29,7 @@ async def start(dut):
     """Start the clock and drive one synchronous reset cycle (POR)."""
     cocotb.start_soon(Clock(dut.clk_i, CLOCK_PERIOD_NS, unit="ns").start())
     dut.rst_i.value = 1
-    dut.opcode_i.value = 0
+    dut.instruction.value = 0
     dut.overflow_i.value = 0
     await RisingEdge(dut.clk_i)
     dut.rst_i.value = 0
@@ -39,7 +39,7 @@ async def start(dut):
 async def step(dut, opcode, overflow_i):
     """Drive one cycle's inputs, advance past the rising edge, return the
     resulting overflow_o."""
-    dut.opcode_i.value = opcode
+    dut.instruction.value = opcode
     dut.overflow_i.value = overflow_i
     await RisingEdge(dut.clk_i)
     await SETTLE
@@ -127,7 +127,7 @@ async def test_reset_overrides_capture(dut):
     """rst_i wins even over a simultaneous ALU cycle with overflow_i=1."""
     await start(dut)
     dut.rst_i.value = 1
-    dut.opcode_i.value = make_opcode(ALU_MAJOR_OPCODE)
+    dut.instruction.value = make_opcode(ALU_MAJOR_OPCODE)
     dut.overflow_i.value = 1
     await RisingEdge(dut.clk_i)
     dut.rst_i.value = 0

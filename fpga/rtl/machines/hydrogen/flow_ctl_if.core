@@ -4,6 +4,8 @@ description: Hydrogen machine flow-control/requester interface (see docs/machine
 
 filesets:
   rtl:
+    depend:
+      - ":hydrogen:isa_pkg"
     files:
       - flow_ctl_if.sv
     file_type: systemVerilogSource

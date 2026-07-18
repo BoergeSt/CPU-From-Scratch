@@ -6,6 +6,7 @@ filesets:
   rtl:
     depend:
       - ":hydrogen:alu_if"
+      - ":hydrogen:isa_pkg"
     files:
       - alu.sv
     file_type: systemVerilogSource

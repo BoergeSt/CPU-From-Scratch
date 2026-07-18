@@ -4,6 +4,8 @@ description: Hydrogen machine register-file read port interface (see docs/machin
 
 filesets:
   rtl:
+    depend:
+      - ":hydrogen:isa_pkg"
     files:
       - regfile_read_if.sv
     file_type: systemVerilogSource

@@ -5,6 +5,7 @@ description: Hydrogen machine flow-control unit (see docs/machines/hydrogen/flow
 filesets:
   rtl:
     depend:
+      - ":hydrogen:isa_pkg"
       - ":hydrogen:flow_ctl_if"
     files:
       - flow_ctl.sv

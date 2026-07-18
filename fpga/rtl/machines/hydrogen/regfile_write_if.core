@@ -4,6 +4,8 @@ description: Hydrogen machine register-file write port interface (see docs/machi
 
 filesets:
   rtl:
+    depend:
+      - ":hydrogen:isa_pkg"
     files:
       - regfile_write_if.sv
     file_type: systemVerilogSource

@@ -4,6 +4,8 @@ description: Hydrogen machine ALU/requester interface (see docs/machines/hydroge
 
 filesets:
   rtl:
+    depend:
+      - ":hydrogen:isa_pkg"
     files:
       - alu_if.sv
     file_type: systemVerilogSource

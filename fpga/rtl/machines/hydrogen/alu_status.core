@@ -4,6 +4,8 @@ description: Hydrogen machine ALU status latch (see docs/machines/hydrogen/alu_s
 
 filesets:
   rtl:
+    depend:
+      - ":hydrogen:isa_pkg"
     files:
       - alu_status.sv
     file_type: systemVerilogSource

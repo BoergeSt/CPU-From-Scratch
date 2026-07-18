@@ -1,6 +1,6 @@
 """cocotb testbench for the Hydrogen ALU (see docs/machines/hydrogen/alu.md).
 
-Purely combinational (no clock/reset): each test drives bus.opcode (the
+Purely combinational (no clock/reset): each test drives bus.instruction (the
 entire 32-bit fetched instruction word, see isa.md's ALU encoding)/
 bus.value1/bus.value2, awaits a small settle delay, then checks
 bus.result/bus.overflow/bus.error.
@@ -46,7 +46,7 @@ def make_opcode(alu_op, is_imm_src1=0, is_imm_src2=0, imm=0):
 
 
 async def apply(dut, operation, value1, value2, is_imm_src1=0, is_imm_src2=0, imm=0):
-    dut.bus.opcode.value = make_opcode(operation, is_imm_src1, is_imm_src2, imm)
+    dut.bus.instruction.value = make_opcode(operation, is_imm_src1, is_imm_src2, imm)
     dut.bus.value1.value = value1
     dut.bus.value2.value = value2
     await SETTLE_TIME
