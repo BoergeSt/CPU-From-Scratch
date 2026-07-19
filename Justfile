@@ -26,9 +26,12 @@ sim core:
     [ -n "$fail_count" ] && [ "$fail_count" -ne 0 ] && exit 1
     exit 0
 
-# Lint then sim a core in one step, e.g. `just check :hydrogen:alu`
-# Stops after lint if it fails, there's no point simulating broken RTL.
-check core: (lint core) (sim core)
+# Lint, sim, then elaborate a core in one step, e.g. `just check
+# :hydrogen:alu`. Stops after lint if it fails, there's no point
+# simulating broken RTL. Elaborate goes through Yosys/slang -- a
+# different frontend/elaborator than Verilator's lint, so it's a real
+# additional check, not a repeat of `lint`.
+check core: (lint core) (sim core) (elaborate core)
 
 # Sim a core with line/branch/toggle coverage instrumentation (the core's
 # `coverage` target -- see e.g. regfile.core), then annotate the source
@@ -168,6 +171,93 @@ view core:
         exit 1
     fi
     surfer "$dump"
+
+# Elaborate a core through Yosys (slang frontend) as a generic,
+# technology-independent netlist -- no target device, just structure/
+# synthesizability (generic cells). The core's `elaborate` target (e.g.
+# regfile.core) points at a dedicated <module>_elab_top.sv with flat
+# ports, not the cocotb tb_top -- opt's dead-code elimination needs real
+# outputs to keep the design alive, and tb_top (driven/read hierarchically
+# by cocotb) has none; confirmed empirically, not a hypothetical.
+# `toplevel` is read back from FuseSoC's own resolved eda.yml rather than
+# guessed from the core name, so it always matches whatever the .core file
+# actually declares.
+# Output: build/<core>_0/elaborate/netlist.svg (+ .dot) -- open directly
+# (`just view-netlist <core>`), no special viewer needed.
+elaborate core:
+    #!/usr/bin/env sh
+    set -eu
+    just _fusesoc elaborate "{{core}}"
+    name="{{ replace(trim_start_match(core, ":"), ":", "_") }}_0"
+    dir="build/$name/elaborate"
+    top=$(grep '^toplevel:' "$dir/$name.eda.yml" | awk '{print $2}')
+    files=$(find "$dir/src" -name '*.sv' | sed 's|^|/work/|' | tr '\n' ' ')
+    printf '%s\n' \
+        "plugin -i slang" \
+        "read_slang $files --top $top" \
+        "proc" \
+        "opt" \
+        "stat" \
+        "show -format svg -prefix /work/$dir/netlist" \
+        > "$dir/elaborate.ys"
+    podman run --rm --userns=keep-id -e HOME=/tmp -v "{{justfile_directory()}}":/work:Z -w /work fpga-toolchain:dev \
+        yosys -s "/work/$dir/elaborate.ys"
+    echo "netlist: $dir/netlist.svg"
+
+# Open an already-elaborated netlist in the system's default SVG viewer,
+# e.g. `just view-netlist :hydrogen:regfile`. Same "viewing never forces
+# a rebuild" reasoning as `view` (waveforms) -- run `just elaborate`
+# first (or again, if stale).
+view-netlist core:
+    #!/usr/bin/env sh
+    set -eu
+    svg="build/{{ replace(trim_start_match(core, ":"), ":", "_") }}_0/elaborate/netlist.svg"
+    if [ ! -f "$svg" ]; then
+        echo "no netlist found at $svg -- run 'just elaborate {{core}}' first" >&2
+        exit 1
+    fi
+    xdg-open "$svg"
+
+# Elaborate every "checkable" core in one machine, e.g. `just
+# elaborate-machine hydrogen`. "Checkable" means the core's .core file
+# defines an `elaborate` target -- same discovery pattern as
+# check-machine. Every core still runs even if an earlier one fails, so
+# the summary always covers all of them; full output only prints for a
+# failing core, keeping a healthy run's output short. Exits nonzero if
+# anything failed.
+elaborate-machine machine:
+    #!/usr/bin/env sh
+    set -u
+    failed=0
+    for core_file in fpga/rtl/machines/{{machine}}/*.core; do
+        name=$(basename "$core_file" .core)
+        grep -q '^  elaborate:' "$core_file" || continue
+        printf 'elaborating :%s:%s ... ' "{{machine}}" "$name"
+        output=$(just elaborate ":{{machine}}:$name" 2>&1)
+        status=$?
+        if [ "$status" -ne 0 ]; then
+            failed=1
+            echo "FAILED"
+            printf '%s\n' "$output"
+        else
+            echo "ok"
+        fi
+    done
+    exit $failed
+
+# Elaborate every core in the hydrogen machine.
+elaborate-hydrogen: (elaborate-machine "hydrogen")
+
+# Elaborate every core in every machine under fpga/rtl/machines/. Same
+# "stays correct as machines are added" reasoning as check-all.
+elaborate-all:
+    #!/usr/bin/env sh
+    set -u
+    failed=0
+    for dir in fpga/rtl/machines/*/; do
+        just elaborate-machine "$(basename "$dir")" || failed=1
+    done
+    exit $failed
 
 # List every FuseSoC core discoverable under fpga/rtl/machines
 core-list:
