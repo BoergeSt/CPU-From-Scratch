@@ -454,6 +454,9 @@ practice.
   last column) or move the fuller explanation into prose immediately below
   the table — never delete real information just to hit the width target;
   conciseness is fine, but the fact has to survive somewhere.
+  `scripts/check-doc-table-width.py` checks this automatically (defaults to
+  every `docs/**/*.md`; `--max-width` to override the 100 default) — run it
+  after editing any doc table instead of eyeballing rendered width by hand.
 - **Docs: concise. Tables over prose wherever the data is tabular;
   implementation detail isolated under its own heading, included only
   when actually necessary.** Prefer a table any time the content is
