@@ -42,13 +42,11 @@ Explicitly **not** this module's job: halt and reset. See Design rationale.
 | `clk_i` | in | 1 | Clock |
 | `rst_i` | in | 1 | Synchronous active-high reset; `pc_o <= ResetVector` (see Behavior) |
 
-Plain ports, matching `regfile.sv`'s convention (clock first, reset
-immediately after, kept outside the bundled data interface below — same
-"clk/rst never part of an interface" convention `regfile.md` already
-states). Reset is synchronous, active-high, project-wide convention. `rst_i`
-may be asserted by whatever this module's own upstream reset fan-out is, or
-pulsed externally by a future reset controller module (see Design
-rationale) — this module can't distinguish the two and doesn't need to.
+See `implementation.md` for the shared clock/reset convention these ports
+follow. `rst_i` may be asserted by whatever this module's own upstream
+reset fan-out is, or pulsed externally by a future reset controller module
+(see Design rationale) — this module can't distinguish the two and doesn't
+need to.
 
 ### `flow_ctl_if`
 

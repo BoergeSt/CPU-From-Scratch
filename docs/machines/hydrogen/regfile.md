@@ -48,16 +48,14 @@ Concretely out of scope for this module:
 ### Clock and reset
 
 `clk_i` and `rst_i` are plain module ports, not part of either interface
-below — per the lowRISC-derived naming convention in `CLAUDE.md` (clock
-first, reset immediately after), and matching how `alu_if` itself keeps
-clock/reset outside the data interface (there, because the ALU has none at
-all; here, because they're conventionally kept out of bus-style interfaces
-regardless).
+below. See `implementation.md` for the shared clock/reset convention;
+matching how `alu_if` itself keeps clock/reset outside the data interface
+(there, because the ALU has none at all; here, because they're
+conventionally kept out of bus-style interfaces regardless).
 
-Reset is synchronous, active-high (project-wide convention). While `rst_i`
-is high at a rising `clk_i` edge, all 8 registers (`R0`–`R7`) are set to
-`0`. A POR (power-on-reset) event — asserting `rst_i` at least once — is
-required before register contents are architecturally defined.
+While `rst_i` is high at a rising `clk_i` edge, all 8 registers (`R0`–`R7`)
+are set to `0`. A POR (power-on-reset) event — asserting `rst_i` at least
+once — is required before register contents are architecturally defined.
 
 ### Read port (`regfile_read_if`)
 
