@@ -442,3 +442,38 @@ practice.
   `docs/` spec), point to that source in one line instead of repeating
   the description. Restating the same table in the interface file, the
   module that uses it, and the doc isn't thorough, it's noise.
+- **Markdown tables in `docs/`: keep rows to ~100 characters of *uniform
+  rendered width*, not raw source line length.** GFM tables pad every row
+  to the widest cell per column, and the terminal markdown renderer used
+  here (`render-markdown.nvim`) doesn't wrap cell content — one long
+  Description cell forces the *entire* table wider than the window, not
+  just that row. Compute width as if every row were padded to match the
+  table's own widest cell per column (not each row's own raw length)
+  before judging whether it fits. When a cell doesn't fit: split it into a
+  continuation row (blank leading columns, remainder of the text in the
+  last column) or move the fuller explanation into prose immediately below
+  the table — never delete real information just to hit the width target;
+  conciseness is fine, but the fact has to survive somewhere.
+- **Docs: concise. Tables over prose wherever the data is tabular;
+  implementation detail isolated under its own heading, included only
+  when actually necessary.** Prefer a table any time the content is
+  naturally rows-of-facts (bit layouts, port lists, opcode tables) instead
+  of writing it out as prose sentences — `isa.md`'s bit-layout/operations
+  tables are the model. RTL-implementation-specific detail (how a
+  decision is expressed in SystemVerilog, not what it means
+  architecturally) only belongs in a doc if it's actually important
+  enough to include at all, and when it is, it goes under its own
+  heading rather than interleaved with the architectural explanation —
+  `isa.md`'s "SV implementation" section, kept separate from the encoding
+  tables above it, is the pattern.
+- **Docs: operational standpoint by default, not implementation
+  standpoint — except where the implementation genuinely matters to one
+  of the two people this documentation is for.** (1) Whoever implements
+  the HDL needs the actual design decisions — clocking, reset, opcode
+  encoding, module boundaries, and so on. (2) Whoever programs against
+  the finished CPU needs mainly the opcode/behavior contract, not how
+  it's realized in gates. Default to describing what the hardware does
+  and how to use it, not how the RTL happens to express that internally;
+  when implementation detail is included at all (per the previous bullet,
+  under its own heading), it should be because reader (1) genuinely needs
+  it, not because it was interesting to write down.
