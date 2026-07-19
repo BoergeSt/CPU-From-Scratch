@@ -12,7 +12,7 @@ module regfile (
     regfile_read_if.regfile read3,
     regfile_write_if.regfile write
 );
-  logic [7:0][31:0] registers;
+  logic [31:0] registers[8];
 
   always_comb begin
     read1.data = registers[read1.addr];
@@ -22,7 +22,7 @@ module regfile (
 
   always_ff @(posedge clk_i) begin
     if (rst_i) begin
-      registers <= '0;
+      registers <= '{default: '0};
     end else if (write.write_en) begin
       registers[write.addr] <= write.data;
     end
