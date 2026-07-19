@@ -74,16 +74,18 @@ check-machine machine:
         result=$(printf '%s\n' "$output" | grep -oE 'TESTS=[0-9]+ PASS=[0-9]+ FAIL=[0-9]+ SKIP=[0-9]+' | tail -1)
         if [ "$status" -ne 0 ]; then
             failed=1
+            status_word="FAILED"
             [ -z "$result" ] && result="LINT/BUILD FAILED"
             echo "FAILED"
             printf '%s\n' "$output"
         else
+            status_word="ok"
             echo "ok"
         fi
-        printf '  %s: %s\n' "$name" "$result" >> "$summary"
+        printf '%s\t%s\t%s\n' "$name" "$status_word" "$result" >> "$summary"
     done
     printf '\n=== check-%s summary ===\n' "{{machine}}"
-    cat "$summary"
+    python3 scripts/format-check-summary.py < "$summary"
     exit $failed
 
 # Check every core in the hydrogen machine.
