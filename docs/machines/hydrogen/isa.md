@@ -42,6 +42,20 @@ controller module.
   constraint on the register file's required port count, not a prescription
   of its RTL implementation.
 
+## Reset and error vectors
+
+| Vector | Value | Word address | Trigger |
+|--------|-------|---------------|---------|
+| `ResetVector` | `0x10` | 16 | PC on reset — first instruction fetched |
+| `ErrorVector` | `0x0`  | 0  | PC on an illegal-instruction/trap condition |
+
+Both are word addresses, same as the PC itself. Word addresses `0x0`–`0xF`
+are reserved for a small exception handler; real program code starts at
+`0x10`. See `flow_ctl.md` for the conditions that trigger `ErrorVector` and
+their priority against normal execution. Defined in `isa_pkg.sv` as
+`ResetVector`/`ErrorVector` — not part of the instruction encoding itself,
+since no field in any opcode encodes them.
+
 ## Instruction encoding
 
 Every instruction is a single 32-bit word: a 4-bit major opcode in
