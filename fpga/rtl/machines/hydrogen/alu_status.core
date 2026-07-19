@@ -54,3 +54,15 @@ targets:
       cocotb_module: test_alu_status
       verilator_options: [--trace-fst, --coverage-line, --coverage-toggle]
       run_options: [--trace]
+
+  # `just elaborate` points Yosys (slang frontend) at these staged
+  # sources -- see regfile.core's `elaborate` target for the general
+  # rationale. Flat ports only (no interface) and a real observable
+  # output already, so the DUT itself works as elaboration top -- no
+  # elab_top wrapper needed, same reason `sim` needs no _tb_top either.
+  elaborate:
+    filesets: [rtl]
+    toplevel: alu_status
+    flow: lint
+    flow_options:
+      tool: verilator

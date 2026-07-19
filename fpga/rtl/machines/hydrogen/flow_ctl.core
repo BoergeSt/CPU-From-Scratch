@@ -17,6 +17,11 @@ filesets:
       - tb/test_flow_ctl.py: {file_type: user, copyto: .}
     file_type: systemVerilogSource
 
+  elab:
+    files:
+      - elab/flow_ctl_elab_top.sv
+    file_type: systemVerilogSource
+
 targets:
   # Needed so other cores can depend on `:hydrogen:flow_ctl` (see e.g. a
   # future control-unit core).
@@ -55,3 +60,13 @@ targets:
       cocotb_module: test_flow_ctl
       verilator_options: [--trace-fst, --coverage-line, --coverage-toggle]
       run_options: [--trace]
+
+  # `just elaborate` points Yosys (slang frontend) at these staged
+  # sources -- see regfile.core's `elaborate` target for the full
+  # rationale (why flow_ctl_elab_top rather than flow_ctl_tb_top).
+  elaborate:
+    filesets: [rtl, elab]
+    toplevel: flow_ctl_elab_top
+    flow: lint
+    flow_options:
+      tool: verilator

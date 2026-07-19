@@ -17,6 +17,11 @@ filesets:
       - tb/test_regfile.py: {file_type: user, copyto: .}
     file_type: systemVerilogSource
 
+  elab:
+    files:
+      - elab/regfile_elab_top.sv
+    file_type: systemVerilogSource
+
 targets:
   # Needed so other cores can depend on `:hydrogen:regfile` (see e.g. a
   # future control-unit core).
@@ -55,3 +60,19 @@ targets:
       cocotb_module: test_regfile
       verilator_options: [--trace-fst, --coverage-line, --coverage-toggle]
       run_options: [--trace]
+
+  # `just elaborate` points Yosys (slang frontend) at these staged
+  # sources -- flow/tool here is just FuseSoC's staging mechanism, the
+  # real netlist comes from Yosys, not Verilator. Needs regfile_elab_top
+  # rather than regfile directly: a bare interface port on a true
+  # elaboration top isn't connectable to anything. Deliberately not
+  # regfile_tb_top (tb/regfile_tb_top.sv) -- that top has no data output
+  # ports (cocotb reads/drives it hierarchically instead), so Yosys's opt
+  # pass would delete the whole register file as unused; regfile_elab_top
+  # exists solely to give opt real outputs to keep alive.
+  elaborate:
+    filesets: [rtl, elab]
+    toplevel: regfile_elab_top
+    flow: lint
+    flow_options:
+      tool: verilator

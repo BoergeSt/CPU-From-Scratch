@@ -17,6 +17,11 @@ filesets:
       - tb/test_alu.py: {file_type: user, copyto: .}
     file_type: systemVerilogSource
 
+  elab:
+    files:
+      - elab/alu_elab_top.sv
+    file_type: systemVerilogSource
+
 targets:
   # Needed so other cores can depend on `:hydrogen:alu` (see alu_if.core).
   default:
@@ -55,3 +60,13 @@ targets:
       cocotb_module: test_alu
       verilator_options: [--trace-fst, --coverage-line, --coverage-toggle]
       run_options: [--trace]
+
+  # `just elaborate` points Yosys (slang frontend) at these staged
+  # sources -- see regfile.core's `elaborate` target for the full
+  # rationale (why alu_elab_top rather than alu_tb_top).
+  elaborate:
+    filesets: [rtl, elab]
+    toplevel: alu_elab_top
+    flow: lint
+    flow_options:
+      tool: verilator
