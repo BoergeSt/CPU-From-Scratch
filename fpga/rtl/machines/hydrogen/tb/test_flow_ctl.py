@@ -338,6 +338,28 @@ async def test_error_forces_error_vector_even_for_non_flow_ctl_major_opcode(dut)
     )
 
 
+RESERVED_OPS = [0xC, 0xD, 0xE, 0xF]
+
+
+@cocotb.test()
+async def test_reserved_op_forces_error_vector(dut):
+    """Reserved op values (0xC-0xF) on a real FLOW_CTL instruction are
+    illegal, not a no-op -- flow_ctl.md's Design rationale: they land in the
+    case statement's default: arm, which resolves to ErrorVector, distinct
+    from NOP's defined fall-through. Operands are set as if they'd otherwise
+    produce a taken jump, to confirm the reserved op overrides them."""
+    for op in RESERVED_OPS:
+        await start(dut)
+        opcode = make_opcode(op, r=1, i=1, imm=0x1234)
+        pc_after = await step(
+            dut, opcode, value1=1, value2=1, goto=0xBEEF_0000, overflow=1
+        )
+        assert pc_after == ERROR_VECTOR, (
+            f"bus.pc = {pc_after:#010x} for reserved op={op:#x}, expected "
+            f"ErrorVector {ERROR_VECTOR:#010x}"
+        )
+
+
 @cocotb.test()
 async def test_reset_overrides_error_and_condition(dut):
     """rst_i wins even over a simultaneous error_i + taken jump."""
