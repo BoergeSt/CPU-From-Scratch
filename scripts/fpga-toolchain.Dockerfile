@@ -7,10 +7,16 @@ FROM debian:bookworm-slim
 ARG OSS_CAD_SUITE_TAG=2026-06-29
 ARG OSS_CAD_SUITE_DATE=20260629
 
+# fontconfig + fonts-dejavu-core: Yosys's `show` renders netlists via
+# Graphviz+Pango, which needs a real font to compute text-extent metrics --
+# without one, Pango can't describe a null font, floods stderr, and falls
+# back to guesswork metrics (the render still completes either way).
 RUN apt-get update && apt-get install -y --no-install-recommends \
         build-essential \
         ca-certificates \
         curl \
+        fontconfig \
+        fonts-dejavu-core \
         liblz4-dev \
         make \
         perl \
