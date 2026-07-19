@@ -106,16 +106,33 @@ check-all:
 # Run coverage for every "checkable" core in one machine, e.g.
 # `just coverage-machine hydrogen`. "Checkable" means the core's .core file
 # defines a `coverage` target -- same discovery pattern as check-machine.
+# Same quiet-unless-failing convention as check-machine: full output only
+# prints for a failing core, and a summary table lands at the end either way.
 coverage-machine machine:
     #!/usr/bin/env sh
     set -u
     failed=0
+    summary=$(mktemp)
+    trap 'rm -f "$summary"' EXIT
     for core_file in fpga/rtl/machines/{{machine}}/*.core; do
         name=$(basename "$core_file" .core)
         grep -q '^  coverage:' "$core_file" || continue
-        printf '=== coverage :%s:%s ===\n' "{{machine}}" "$name"
-        just coverage ":{{machine}}:$name" || failed=1
+        printf 'coverage :%s:%s ... ' "{{machine}}" "$name"
+        output=$(just coverage ":{{machine}}:$name" 2>&1)
+        status=$?
+        if [ "$status" -ne 0 ]; then
+            failed=1
+            status_word="FAILED"
+            echo "FAILED"
+            printf '%s\n' "$output"
+        else
+            status_word="ok"
+            echo "ok"
+        fi
+        printf '### %s\t%s\n%s\n' "$name" "$status_word" "$output" >> "$summary"
     done
+    printf '\n=== coverage-%s summary ===\n' "{{machine}}"
+    python3 scripts/format-coverage-summary.py < "$summary"
     exit $failed
 
 # Coverage for every core in the hydrogen machine.
