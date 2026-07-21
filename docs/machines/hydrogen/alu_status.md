@@ -29,24 +29,37 @@ is even an `ALU` instruction, rather than something external telling it so.
 
 ## Interface
 
+### Clock and reset
+
 | Field | Dir | Width | Description |
 |-------|-----|-------|--------------|
 | `clk_i` | in | 1 | Clock |
-| `rst_i` | in | 1 | Synchronous active-high reset; `overflow_o <= 0` |
+| `rst_i` | in | 1 | Synchronous active-high reset; `latched_overflow <= 0` |
+
+### `alu_status_if`
+
+Everything else bundles into one interface, `alu_status_if`, mirroring
+`alu_if`/`flow_ctl_if`'s single-consumer/single-shape reasoning.
+
+| Field | Dir | Width | Description |
+|-------|-----|-------|--------------|
 | `instruction` | in | 32 (`instr_t`) | Entire fetched instruction word |
-| `overflow_i` | in | 1 | The ALU's live `bus.overflow` |
-| `overflow_o` | out | 1 | Registered, latched flag |
+| `overflow` | in | 1 | The ALU's live `bus.overflow` |
+| `latched_overflow` | out | 1 | Registered, latched flag |
 
-`instruction` is the same value the ALU and flow-control unit receive,
-used here only to self-detect `ALU` cycles (`instruction.generic.ic ==
-IC_ALU`). `overflow_i` is wired directly from `alu.sv` — combinational,
-present every cycle regardless of which instruction is actually active.
-`overflow_o` feeds `flow_ctl`'s `overflow_i`.
+(Dir is from the `alu_status` modport.) `instruction` is the same value the
+ALU and flow-control unit receive, used here only to self-detect `ALU`
+cycles (`instruction.generic.ic == IC_ALU`). `overflow` is wired from
+`alu.sv`'s `bus.overflow` — combinational, present every cycle regardless of
+which instruction is actually active. `latched_overflow` feeds `flow_ctl`'s
+`overflow` (`flow_ctl_if.overflow`). The `requester` modport mirrors every
+direction, same pattern as `alu_if`'s.
 
-`instruction` is typed `isa_pkg::instr_t`, so the port list needs the
-package's types in scope — this module's `import isa_pkg::*;` sits in the
-module header, not the body (see `isa.md`'s SV implementation section for
-why that placement is required here specifically).
+`instruction` is typed `isa_pkg::instr_t`, imported inside `alu_status_if`
+itself — the module's own body-level `import isa_pkg::IC_ALU;` is only for
+the `IC_ALU` comparison in its behavior, not for the port list (see
+`isa.md`'s SV implementation section for the module-header-vs-body import
+distinction this follows).
 
 ## Behavior
 
@@ -68,6 +81,11 @@ Every rising `clk_i` edge:
 
 ## Design rationale
 
+- **Everything but `clk_i`/`rst_i` bundles into `alu_status_if`.** Same
+  reasoning as `alu_if`/`flow_ctl_if`: this whole interface gets handed to
+  one consumer (a future control unit) as a single instance.
+  `clk_i`/`rst_i` stay outside it regardless, per the project-wide
+  clock/reset-never-in-an-interface convention (`regfile.md`).
 - **Separate module, not inside the ALU.** The alternative — give the ALU
   `clk_i`/`rst_i` and have it latch its own overflow — was seriously
   considered during this module's design and rejected: it directly reverses
