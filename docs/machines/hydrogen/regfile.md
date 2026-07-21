@@ -70,9 +70,9 @@ operand at all.
 | Field | Dir | Width | Description |
 |-------|-----|-------|--------------|
 | `addr` | in  | 3 (`reg_addr_e`) | Register index `R0`–`R7` to read |
-| `data` | out | 32 | Current value of the addressed register |
+| `value` | out | 32 | Current value of the addressed register |
 
-(Dir is from the `regfile` modport.) `data` is combinational, no clock
+(Dir is from the `regfile` modport.) `value` is combinational, no clock
 involved. The mirrored `requester` modport reverses both directions,
 matching the `alu`/`requester` pattern already established by `alu_if`.
 
@@ -83,8 +83,8 @@ One instance.
 | Field | Dir | Width | Description |
 |-------|-----|-------|--------------|
 | `addr` | in | 3 (`reg_addr_e`) | Register index `R0`–`R7` to write |
-| `data` | in | 32 | Value to write |
-| `write_en` | in | 1 | Write enable — see Behavior |
+| `value` | in | 32 | Value to write |
+| `enable` | in | 1 | Write enable — see Behavior |
 
 (Dir is from the `regfile` modport.) Same mirrored-modport pattern as the
 read port.
@@ -94,19 +94,19 @@ than one bundle spanning both — see Design rationale.
 
 ## Behavior
 
-- **Reads are combinational and continuous.** Each read port's `data`
+- **Reads are combinational and continuous.** Each read port's `value`
   reflects the current value of the register selected by `addr` at all
   times, with no clock involved — forced by the single-cycle core's
   combinational-ALU model (`alu.md`): a registered read would add a cycle
   of latency the ALU has no way to wait for.
 - **Writes are synchronous.** On the rising edge of `clk_i`, if
-  `write_en` is high, the register addressed by `addr` is loaded with
-  `data`. If `write_en` is low, no register changes (outside of reset).
+  `enable` is high, the register addressed by `addr` is loaded with
+  `value`. If `enable` is low, no register changes (outside of reset).
 - **Reset takes unconditional priority over a simultaneous write.** If
-  `rst_i` and `write_en` are both high on the same rising edge, all 8
+  `rst_i` and `enable` are both high on the same rising edge, all 8
   registers are cleared to `0` and the pending write is discarded — reset
   is not just "the default when nothing else is happening," it overrides
-  write_en whenever both are asserted together.
+  `enable` whenever both are asserted together.
 - **Same-address same-cycle read + write** (e.g. an instruction that reads
   `R1` as an operand and also writes its result back to `R1`) needs no
   special-case bypass logic. Reads reflect the pre-write value throughout

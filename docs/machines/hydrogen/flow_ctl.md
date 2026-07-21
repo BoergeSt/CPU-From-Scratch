@@ -72,7 +72,7 @@ IC_FLOW_CTL`, per `CLAUDE.md`'s functional-units-get-the-whole-instruction
 decision. `val1`/`val2` are `regfile.read1`/`read2` data, permanently
 wired from `instruction.flow_ctl.src1_addr`/`.src2_addr` system-wide
 (`CLAUDE.md`'s fixed-register-position decision), always driven regardless
-of which `op` is active. `goto_val` is `regfile.read3.data`; `read3.addr`
+of which `op` is active. `goto_val` is `regfile.read3.value`; `read3.addr`
 is permanently wired from `instruction.flow_ctl.target.is_reg.jump_to_addr`
 system-wide, same as `read1`/`read2` — this module doesn't drive that
 address itself. Named `goto_val`, not `goto` — the latter is a reserved
@@ -107,7 +107,7 @@ op          = instruction.flow_ctl.op            // only consulted when is_flow_
 imm         = instruction.flow_ctl.target.is_imm.imm   // i=1 case, 16b
 ```
 
-`goto_val_i` (`regfile.read3.data`) is available every cycle regardless of
+`goto_val_i` (`regfile.read3.value`) is available every cycle regardless of
 `i`, since `read3.addr` is unconditionally, permanently wired from
 `instruction.flow_ctl.target.is_reg.jump_to_addr` system-wide — this module
 never drives that address itself (see Design rationale). When `i=1`, that

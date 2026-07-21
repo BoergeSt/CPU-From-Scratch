@@ -27,9 +27,9 @@ async def start(dut):
     """Start the clock and drive one synchronous reset cycle (POR)."""
     cocotb.start_soon(Clock(dut.clk_i, CLOCK_PERIOD_NS, unit="ns").start())
     dut.rst_i.value = 1
-    dut.write.write_en.value = 0
+    dut.write.enable.value = 0
     dut.write.addr.value = 0
-    dut.write.data.value = 0
+    dut.write.value.value = 0
     dut.read1.addr.value = 0
     dut.read2.addr.value = 0
     dut.read3.addr.value = 0
@@ -38,32 +38,32 @@ async def start(dut):
     await SETTLE
 
 
-async def write_reg(dut, addr, data):
-    """Write `data` into register `addr` on the next rising edge."""
+async def write_reg(dut, addr, value):
+    """Write `value` into register `addr` on the next rising edge."""
     dut.write.addr.value = addr
-    dut.write.data.value = data
-    dut.write.write_en.value = 1
+    dut.write.value.value = value
+    dut.write.enable.value = 1
     await RisingEdge(dut.clk_i)
-    dut.write.write_en.value = 0
+    dut.write.enable.value = 0
     await SETTLE
 
 
 async def read1(dut, addr):
     dut.read1.addr.value = addr
     await SETTLE
-    return int(dut.read1.data.value)
+    return int(dut.read1.value.value)
 
 
 async def read2(dut, addr):
     dut.read2.addr.value = addr
     await SETTLE
-    return int(dut.read2.data.value)
+    return int(dut.read2.value.value)
 
 
 async def read3(dut, addr):
     dut.read3.addr.value = addr
     await SETTLE
-    return int(dut.read3.data.value)
+    return int(dut.read3.value.value)
 
 
 @cocotb.test()
@@ -86,11 +86,11 @@ async def test_reset_overrides_writes_and_simultaneous_write(dut):
     # Assert rst_i together with a live write attempt on the same edge.
     dut.rst_i.value = 1
     dut.write.addr.value = 3
-    dut.write.data.value = 0x0DEA_DBEE
-    dut.write.write_en.value = 1
+    dut.write.value.value = 0x0DEA_DBEE
+    dut.write.enable.value = 1
     await RisingEdge(dut.clk_i)
     dut.rst_i.value = 0
-    dut.write.write_en.value = 0
+    dut.write.enable.value = 0
     await SETTLE
 
     for addr in range(NUM_REGS):
@@ -155,9 +155,9 @@ async def test_read_ports_independent_different_addresses(dut):
         dut.read2.addr.value = addr2
         dut.read3.addr.value = addr3
         await SETTLE
-        actual1 = int(dut.read1.data.value)
-        actual2 = int(dut.read2.data.value)
-        actual3 = int(dut.read3.data.value)
+        actual1 = int(dut.read1.value.value)
+        actual2 = int(dut.read2.value.value)
+        actual3 = int(dut.read3.value.value)
         assert actual1 == values[addr1], (
             f"read1(R{addr1}) = {actual1:#010x}, expected {values[addr1]:#010x}"
         )
@@ -183,9 +183,9 @@ async def test_read_ports_agree_same_address(dut):
         dut.read2.addr.value = addr
         dut.read3.addr.value = addr
         await SETTLE
-        actual1 = int(dut.read1.data.value)
-        actual2 = int(dut.read2.data.value)
-        actual3 = int(dut.read3.data.value)
+        actual1 = int(dut.read1.value.value)
+        actual2 = int(dut.read2.value.value)
+        actual3 = int(dut.read3.value.value)
         assert actual1 == actual2 == actual3 == values[addr], (
             f"R{addr}: read1={actual1:#010x} read2={actual2:#010x} "
             f"read3={actual3:#010x} expected {values[addr]:#010x}"
@@ -211,33 +211,33 @@ async def test_write_does_not_disturb_other_registers(dut):
 
 
 @cocotb.test()
-async def test_write_en_low_has_no_effect(dut):
+async def test_enable_low_has_no_effect(dut):
     await start(dut)
     await write_reg(dut, 4, 0x1234_5678)
 
     dut.write.addr.value = 4
-    dut.write.data.value = 0xFFFF_FFFF
-    dut.write.write_en.value = 0
+    dut.write.value.value = 0xFFFF_FFFF
+    dut.write.enable.value = 0
     await RisingEdge(dut.clk_i)
     await SETTLE
 
     actual = await read1(dut, 4)
     assert actual == 0x1234_5678, (
-        f"R4 = {actual:#010x} after write_en=0, expected unchanged 0x12345678"
+        f"R4 = {actual:#010x} after enable=0, expected unchanged 0x12345678"
     )
 
 
 @cocotb.test()
 async def test_write_pulse_persists(dut):
-    """A single-cycle write_en pulse's value survives further idle cycles,
-    even while addr/data keep changing (write_en stays low)."""
+    """A single-cycle enable pulse's value survives further idle cycles,
+    even while addr/value keep changing (enable stays low)."""
     await start(dut)
     await write_reg(dut, 2, 0xCAFE_BABE)
 
     for i in range(5):
         dut.write.addr.value = (2 + i + 1) % NUM_REGS
-        dut.write.data.value = (0x1111_1111 * (i + 1)) & 0xFFFF_FFFF
-        dut.write.write_en.value = 0
+        dut.write.value.value = (0x1111_1111 * (i + 1)) & 0xFFFF_FFFF
+        dut.write.enable.value = 0
         await RisingEdge(dut.clk_i)
         await SETTLE
         actual = await read1(dut, 2)
@@ -257,19 +257,19 @@ async def test_read_during_write_same_address(dut):
 
     dut.read1.addr.value = 5
     dut.write.addr.value = 5
-    dut.write.data.value = new
-    dut.write.write_en.value = 1
+    dut.write.value.value = new
+    dut.write.enable.value = 1
     await SETTLE
-    before_edge = int(dut.read1.data.value)
+    before_edge = int(dut.read1.value.value)
     assert before_edge == old, (
         f"R5 read before the write's edge = {before_edge:#010x}, "
         f"expected old value {old:#010x}"
     )
 
     await RisingEdge(dut.clk_i)
-    dut.write.write_en.value = 0
+    dut.write.enable.value = 0
     await SETTLE
-    after_edge = int(dut.read1.data.value)
+    after_edge = int(dut.read1.value.value)
     assert after_edge == new, (
         f"R5 read after the write's edge = {after_edge:#010x}, "
         f"expected new value {new:#010x}"

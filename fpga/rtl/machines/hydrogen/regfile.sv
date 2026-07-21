@@ -15,16 +15,16 @@ module regfile (
   logic [31:0] registers[8];
 
   always_comb begin
-    read1.data = registers[read1.addr];
-    read2.data = registers[read2.addr];
-    read3.data = registers[read3.addr];
+    read1.value = registers[read1.addr];
+    read2.value = registers[read2.addr];
+    read3.value = registers[read3.addr];
   end
 
   always_ff @(posedge clk_i) begin
     if (rst_i) begin
       registers <= '{default: '0};
-    end else if (write.write_en) begin
-      registers[write.addr] <= write.data;
+    end else if (write.enable) begin
+      registers[write.addr] <= write.value;
     end
   end
 
