@@ -95,11 +95,48 @@ package isa_pkg;
     reg_addr_e        src1_addr;    // [2:0]
   } flow_ctl_instr_t;
 
+  typedef struct packed {
+    instr_class_e ic;    // [31:28]
+    reg_addr_e    dest;  // [27:25]
+    logic [24:0]  imm;   //[24:0]
+  } imm_set_instr_t;
+
+  typedef struct packed {
+    instr_class_e ic;
+    reg_addr_e    dest;
+    logic [24:0]  imm;
+  } load_imm_instr_t;
+
+  typedef struct packed {
+    instr_class_e ic;
+    logic [24:0]  imm;
+    reg_addr_e    src;
+  } store_imm_instr_t;
+
+  typedef struct packed {
+    instr_class_e ic;
+    reg_addr_e    dest;
+    logic [21:0]  offset;
+    reg_addr_e    base;
+  } load_instr_t;
+
+  typedef struct packed {
+    instr_class_e ic;
+    logic [21:0]  offset;
+    reg_addr_e    src;
+    reg_addr_e    base;
+  } store_instr_t;
+
   typedef union packed {
-    logic [31:0]     raw;
-    generic_instr_t  generic;
-    alu_instr_t      alu;
-    flow_ctl_instr_t flow_ctl;
+    logic [31:0]      raw;
+    generic_instr_t   generic;
+    alu_instr_t       alu;
+    flow_ctl_instr_t  flow_ctl;
+    imm_set_instr_t   imm_set;
+    load_instr_t      load;
+    load_imm_instr_t  load_imm;
+    store_instr_t     store;
+    store_imm_instr_t store_imm;
   } instr_t;
 
 endpackage
