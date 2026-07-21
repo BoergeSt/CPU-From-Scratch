@@ -6,6 +6,7 @@ fpga/rtl/machines/hydrogen/bram.sv
 fpga/rtl/machines/hydrogen/core_glue.sv
 fpga/rtl/machines/hydrogen/flow_ctl.sv
 fpga/rtl/machines/hydrogen/flow_ctl_if.sv
+fpga/rtl/machines/hydrogen/hydrogen.sv
 fpga/rtl/machines/hydrogen/isa_pkg.sv
 fpga/rtl/machines/hydrogen/regfile.sv
 fpga/rtl/machines/hydrogen/regfile_read_if.sv
