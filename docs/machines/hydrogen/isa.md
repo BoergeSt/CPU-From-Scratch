@@ -218,28 +218,58 @@ line consumed by the flow-control unit's exception path (`flow_ctl.md`).
 | `[27:25]` | `dest` | 3 | Destination register index |
 | `[24:0]` | `imm` | 25 | Zero-extended into the register; bits `[31:25]` cleared to 0 |
 
-### `LOAD_IMM` — `0x3`, `STORE_IMM` — `0x4`
+### `LOAD_IMM` — `0x3`
 
 | Bits | Field | Width | Description |
 |------|-------|-------|-------------|
-| `[27:25]` | `dest`/`src` | 3 | Register index (`dest` for `LOAD_IMM`, `src` for `STORE_IMM`) |
+| `[27:25]` | `dest` | 3 | Destination register index |
 | `[24:0]` | `addr` | 25 | Word address |
 
 `addr` is a fixed word address baked directly into the instruction — no
 register is involved in address computation. Reaches 2²⁵ words (128 MB)
-directly.
+directly. `dest` needs no regfile read, so it stays at the universal write
+position (`[27:25]`) with no other field competing for the rest of the word.
 
-### `LOAD` — `0x5`, `STORE` — `0x6`
+### `STORE_IMM` — `0x4`
 
 | Bits | Field | Width | Description |
 |------|-------|-------|-------------|
-| `[27:25]` | `dest`/`src` | 3 | Register index (`dest` for `LOAD`, `src` for `STORE`) |
-| `[24:22]` | `base` | 3 | Base register index |
-| `[21:0]` | `offset` | 22 | Two's-complement offset from `base`'s value |
+| `[27:3]` | `addr` | 25 | Word address |
+| `[2:0]` | `src` | 3 | Register index holding the value to store |
+
+`addr` is a fixed word address, same meaning as `LOAD_IMM`'s. `src` sits at
+the universal `[2:0]` read position shared with every other opcode's first
+register-read operand (`ALU`'s `src1_addr`, `FLOW_CTL`'s `val1_addr`) — see
+Design rationale for why this isn't at `[27:25]` alongside `LOAD_IMM`'s
+`dest`, despite the two opcodes otherwise mirroring each other.
+
+### `LOAD` — `0x5`
+
+| Bits | Field | Width | Description |
+|------|-------|-------|-------------|
+| `[27:25]` | `dest` | 3 | Destination register index |
+| `[24:3]` | `offset` | 22 | Two's-complement offset from `base`'s value |
+| `[2:0]` | `base` | 3 | Base register index |
 
 Effective address = `base` register's value + `offset`, both interpreted as
 word addresses/offsets. `offset` is **two's complement**, reaching ±2²¹
-words (±32 MB) from `base`.
+words (±32 MB) from `base`. `base` sits at the universal `[2:0]` read
+position, same reasoning as `STORE_IMM`'s `src` above.
+
+### `STORE` — `0x6`
+
+| Bits | Field | Width | Description |
+|------|-------|-------|-------------|
+| `[27:6]` | `offset` | 22 | Two's-complement offset from `base`'s value |
+| `[5:3]` | `src` | 3 | Register index holding the value to store |
+| `[2:0]` | `base` | 3 | Base register index |
+
+Effective address = `base` register's value + `offset`, same semantics as
+`LOAD`. `base`/`src` sit at the universal `[2:0]`/`[5:3]` read positions
+shared with every other opcode's register-read operands (`ALU`'s
+`src1_addr`/`src2_addr`, `FLOW_CTL`'s `val1_addr`/`val2_addr`) — `STORE`
+writes nothing, so unlike every other opcode here it leaves `[27:25]`
+(the universal write position) entirely unused.
 
 ### `FLOW_CTL` — `0x2`
 
@@ -519,6 +549,23 @@ exhaustiveness, which is the actually-true property here.
   conditional add/subtract datapath (strictly more hardware) and carries a
   redundant zero representation (`+0` and `-0`), a real verification cost
   for no benefit here.
+- **`STORE_IMM`'s `src` and `LOAD`/`STORE`'s `base`/`src` sit at the
+  universal `[2:0]`/`[5:3]` read positions, not alongside `dest` at
+  `[27:25]`.** An earlier version placed every field in this opcode family
+  at the same position regardless of whether it named a read or a write
+  operand — symmetric-looking, but wrong in kind: `dest` (`LOAD_IMM`/`LOAD`)
+  is a write-target needing no regfile read at all, while `src`
+  (`STORE_IMM`/`STORE`) and `base` (`LOAD`/`STORE`) are read operands that
+  need one of the three fixed read ports, same as `ALU`'s `src1`/`src2` and
+  `FLOW_CTL`'s `val1`/`val2`/`jump_to_addr`. With `src` sitting at `[27:25]`,
+  there was no read port wired to that position to actually read it from —
+  every fixed read port taps `[2:0]`/`[5:3]`/`[8:6]`, and `[27:25]` is
+  reserved system-wide for write addresses instead. Moving `src`/`base` down
+  to `[2:0]`/`[5:3]` fixes that, at the cost of `addr`/`offset` no longer
+  sitting at one fixed range across the whole family (`STORE_IMM`'s `addr`
+  is `[27:3]`; `LOAD_IMM`'s is `[24:0]`). Accepted since assemblers/
+  disassemblers hide the raw bit layout from anyone actually writing code —
+  nobody hand-encodes these opcodes.
 - **No hardwired-zero register.** Considered (cheap free `MOV`, cheap
   compare-to-zero for future branches) but rejected: the immediate-flag ALU
   operand already covers the "need a zero operand" case, and special-casing
