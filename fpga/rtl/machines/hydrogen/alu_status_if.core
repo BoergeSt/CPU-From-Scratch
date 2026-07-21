@@ -1,0 +1,16 @@
+CAPI=2:
+name: :hydrogen:alu_status_if
+description: Hydrogen machine ALU status latch/requester interface (see docs/machines/hydrogen/alu_status.md)
+
+filesets:
+  rtl:
+    depend:
+      - ":hydrogen:isa_pkg"
+    files:
+      - alu_status_if.sv
+    file_type: systemVerilogSource
+
+targets:
+  # No toplevel/flow -- not directly runnable, only a dependency target.
+  default:
+    filesets: [rtl]

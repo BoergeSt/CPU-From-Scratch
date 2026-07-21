@@ -6,13 +6,20 @@ filesets:
   rtl:
     depend:
       - ":hydrogen:isa_pkg"
+      - ":hydrogen:alu_status_if"
     files:
       - alu_status.sv
     file_type: systemVerilogSource
 
   tb_cocotb:
     files:
+      - tb/alu_status_tb_top.sv
       - tb/test_alu_status.py: {file_type: user, copyto: .}
+    file_type: systemVerilogSource
+
+  elab:
+    files:
+      - elab/alu_status_elab_top.sv
     file_type: systemVerilogSource
 
 targets:
@@ -29,11 +36,10 @@ targets:
       tool: verilator
 
   # Always built with FST waveform tracing enabled -- see alu.core's
-  # identical target. Flat ports only (no interface), so the DUT itself is
-  # the toplevel -- no _tb_top wrapper needed, unlike alu/flow_ctl/regfile.
+  # identical target.
   sim:
     filesets: [rtl, tb_cocotb]
-    toplevel: alu_status
+    toplevel: alu_status_tb_top
     flow: sim
     flow_options:
       tool: verilator
@@ -47,7 +53,7 @@ targets:
   # also runs verilator_coverage --annotate over the result.
   coverage:
     filesets: [rtl, tb_cocotb]
-    toplevel: alu_status
+    toplevel: alu_status_tb_top
     flow: sim
     flow_options:
       tool: verilator
@@ -57,12 +63,10 @@ targets:
 
   # `just elaborate` points Yosys (slang frontend) at these staged
   # sources -- see regfile.core's `elaborate` target for the general
-  # rationale. Flat ports only (no interface) and a real observable
-  # output already, so the DUT itself works as elaboration top -- no
-  # elab_top wrapper needed, same reason `sim` needs no _tb_top either.
+  # rationale (why alu_status_elab_top rather than alu_status_tb_top).
   elaborate:
-    filesets: [rtl]
-    toplevel: alu_status
+    filesets: [rtl, elab]
+    toplevel: alu_status_elab_top
     flow: lint
     flow_options:
       tool: verilator

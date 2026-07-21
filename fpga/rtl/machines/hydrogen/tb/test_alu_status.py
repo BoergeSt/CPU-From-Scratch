@@ -1,11 +1,9 @@
 """cocotb testbench for the Hydrogen ALU status latch (see
 docs/machines/hydrogen/alu_status.md).
 
-Synchronous, active-high reset; `overflow_o` is registered. Each test starts
-its own clock and drives its own reset to a known state, since the DUT's
-overflow_o persists across tests within one simulation run. Flat ports only
-(no interface), so cocotb drives the DUT directly -- no _tb_top wrapper
-needed, unlike alu/flow_ctl/regfile.
+Synchronous, active-high reset; `bus.latched_overflow` is registered. Each
+test starts its own clock and drives its own reset to a known state, since
+the DUT's latched_overflow persists across tests within one simulation run.
 """
 
 import cocotb
@@ -29,8 +27,8 @@ async def start(dut):
     """Start the clock and drive one synchronous reset cycle (POR)."""
     cocotb.start_soon(Clock(dut.clk_i, CLOCK_PERIOD_NS, unit="ns").start())
     dut.rst_i.value = 1
-    dut.instruction.value = 0
-    dut.overflow_i.value = 0
+    dut.bus.instruction.value = 0
+    dut.bus.overflow.value = 0
     await RisingEdge(dut.clk_i)
     dut.rst_i.value = 0
     await SETTLE
@@ -38,19 +36,19 @@ async def start(dut):
 
 async def step(dut, opcode, overflow_i):
     """Drive one cycle's inputs, advance past the rising edge, return the
-    resulting overflow_o."""
-    dut.instruction.value = opcode
-    dut.overflow_i.value = overflow_i
+    resulting latched_overflow."""
+    dut.bus.instruction.value = opcode
+    dut.bus.overflow.value = overflow_i
     await RisingEdge(dut.clk_i)
     await SETTLE
-    return int(dut.overflow_o.value)
+    return int(dut.bus.latched_overflow.value)
 
 
 @cocotb.test()
 async def test_reset_clears_overflow(dut):
     """After POR, overflow_o reads back as 0."""
     await start(dut)
-    actual = int(dut.overflow_o.value)
+    actual = int(dut.bus.latched_overflow.value)
     assert actual == 0, f"overflow_o = {actual} after reset, expected 0"
 
 
@@ -127,13 +125,13 @@ async def test_reset_overrides_capture(dut):
     """rst_i wins even over a simultaneous ALU cycle with overflow_i=1."""
     await start(dut)
     dut.rst_i.value = 1
-    dut.instruction.value = make_opcode(ALU_MAJOR_OPCODE)
-    dut.overflow_i.value = 1
+    dut.bus.instruction.value = make_opcode(ALU_MAJOR_OPCODE)
+    dut.bus.overflow.value = 1
     await RisingEdge(dut.clk_i)
     dut.rst_i.value = 0
-    dut.overflow_i.value = 0
+    dut.bus.overflow.value = 0
     await SETTLE
-    actual = int(dut.overflow_o.value)
+    actual = int(dut.bus.latched_overflow.value)
     assert actual == 0, (
         f"overflow_o = {actual} with rst_i=1 (and a simultaneous ALU cycle, "
         f"overflow_i=1), expected 0"
