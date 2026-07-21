@@ -6,7 +6,7 @@ toolchain-build:
 # Run a FuseSoC target against a core -- internal helper, use `lint`/`sim` below.
 _fusesoc target core:
     podman run --rm --userns=keep-id -e HOME=/tmp -v "{{justfile_directory()}}":/work:Z -w /work fpga-toolchain:dev \
-        fusesoc --cores-root fpga/rtl/machines run --target={{target}} "{{core}}"
+        fusesoc --cores-root machines run --target={{target}} "{{core}}"
 
 # Lint a core, e.g. `just lint :hydrogen:alu`
 lint core: (_fusesoc "lint" core)
@@ -68,7 +68,7 @@ check-machine machine:
     failed=0
     summary=$(mktemp)
     trap 'rm -f "$summary"' EXIT
-    for core_file in fpga/rtl/machines/{{machine}}/*.core; do
+    for core_file in machines/{{machine}}/rtl/*.core; do
         name=$(basename "$core_file" .core)
         grep -q '^  lint:' "$core_file" || continue
         printf 'checking :%s:%s ... ' "{{machine}}" "$name"
@@ -94,14 +94,14 @@ check-machine machine:
 # Check every core in the hydrogen machine.
 check-hydrogen: (check-machine "hydrogen")
 
-# Check every core in every machine under fpga/rtl/machines/. Same as
+# Check every core in every machine under machines/. Same as
 # `check-hydrogen` today since hydrogen is the only machine that exists yet
 # -- stays correct without edits once more machine codenames show up.
 check-all:
     #!/usr/bin/env sh
     set -u
     failed=0
-    for dir in fpga/rtl/machines/*/; do
+    for dir in machines/*/; do
         just check-machine "$(basename "$dir")" || failed=1
     done
     exit $failed
@@ -117,7 +117,7 @@ coverage-machine machine:
     failed=0
     summary=$(mktemp)
     trap 'rm -f "$summary"' EXIT
-    for core_file in fpga/rtl/machines/{{machine}}/*.core; do
+    for core_file in machines/{{machine}}/rtl/*.core; do
         name=$(basename "$core_file" .core)
         grep -q '^  coverage:' "$core_file" || continue
         printf 'coverage :%s:%s ... ' "{{machine}}" "$name"
@@ -141,13 +141,13 @@ coverage-machine machine:
 # Coverage for every core in the hydrogen machine.
 coverage-hydrogen: (coverage-machine "hydrogen")
 
-# Coverage for every core in every machine under fpga/rtl/machines/. Same
+# Coverage for every core in every machine under machines/. Same
 # "stays correct as machines are added" reasoning as check-all.
 coverage-all:
     #!/usr/bin/env sh
     set -u
     failed=0
-    for dir in fpga/rtl/machines/*/; do
+    for dir in machines/*/; do
         just coverage-machine "$(basename "$dir")" || failed=1
     done
     exit $failed
@@ -229,7 +229,7 @@ elaborate-machine machine:
     #!/usr/bin/env sh
     set -u
     failed=0
-    for core_file in fpga/rtl/machines/{{machine}}/*.core; do
+    for core_file in machines/{{machine}}/rtl/*.core; do
         name=$(basename "$core_file" .core)
         grep -q '^  elaborate:' "$core_file" || continue
         printf 'elaborating :%s:%s ... ' "{{machine}}" "$name"
@@ -248,18 +248,18 @@ elaborate-machine machine:
 # Elaborate every core in the hydrogen machine.
 elaborate-hydrogen: (elaborate-machine "hydrogen")
 
-# Elaborate every core in every machine under fpga/rtl/machines/. Same
+# Elaborate every core in every machine under machines/. Same
 # "stays correct as machines are added" reasoning as check-all.
 elaborate-all:
     #!/usr/bin/env sh
     set -u
     failed=0
-    for dir in fpga/rtl/machines/*/; do
+    for dir in machines/*/; do
         just elaborate-machine "$(basename "$dir")" || failed=1
     done
     exit $failed
 
-# List every FuseSoC core discoverable under fpga/rtl/machines
+# List every FuseSoC core discoverable under machines
 core-list:
     podman run --rm --userns=keep-id -e HOME=/tmp -v "{{justfile_directory()}}":/work:Z -w /work fpga-toolchain:dev \
-        fusesoc --cores-root fpga/rtl/machines core list
+        fusesoc --cores-root machines core list

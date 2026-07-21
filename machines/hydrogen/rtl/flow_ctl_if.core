@@ -1,0 +1,16 @@
+CAPI=2:
+name: :hydrogen:flow_ctl_if
+description: Hydrogen machine flow-control/requester interface (see machines/hydrogen/docs/flow_ctl.md)
+
+filesets:
+  rtl:
+    depend:
+      - ":hydrogen:isa_pkg"
+    files:
+      - flow_ctl_if.sv
+    file_type: systemVerilogSource
+
+targets:
+  # No toplevel/flow -- not directly runnable, only a dependency target.
+  default:
+    filesets: [rtl]

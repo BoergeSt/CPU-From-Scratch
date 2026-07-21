@@ -1,0 +1,71 @@
+CAPI=2:
+name: :hydrogen:bram
+description: Hydrogen machine BRAM main memory (see machines/hydrogen/docs/bram.md)
+
+filesets:
+  rtl:
+    depend:
+      - ":hydrogen:bus_if"
+    files:
+      - bram.sv
+    file_type: systemVerilogSource
+
+  tb_cocotb:
+    files:
+      - tb/bram_tb_top.sv
+      - tb/test_bram.py: {file_type: user, copyto: .}
+    file_type: systemVerilogSource
+
+  elab:
+    files:
+      - elab/bram_elab_top.sv
+    file_type: systemVerilogSource
+
+targets:
+  # Needed so other cores can depend on `:hydrogen:bram` (see e.g. a
+  # future control-unit/interconnect core).
+  default:
+    filesets: [rtl]
+
+  lint:
+    filesets: [rtl]
+    toplevel: bram
+    flow: lint
+    flow_options:
+      tool: verilator
+
+  # Always built with FST waveform tracing enabled -- see alu.core's
+  # identical target.
+  sim:
+    filesets: [rtl, tb_cocotb]
+    toplevel: bram_tb_top
+    flow: sim
+    flow_options:
+      tool: verilator
+      cocotb_module: test_bram
+      verilator_options: [--trace-fst]
+      run_options: [--trace]
+
+  # Same sim, instrumented for line/branch/toggle coverage (CLAUDE.md's
+  # Coverage decision) -- kept separate from `sim` so everyday runs stay
+  # free of the coverage.dat side output. Drive via `just coverage`, which
+  # also runs verilator_coverage --annotate over the result.
+  coverage:
+    filesets: [rtl, tb_cocotb]
+    toplevel: bram_tb_top
+    flow: sim
+    flow_options:
+      tool: verilator
+      cocotb_module: test_bram
+      verilator_options: [--trace-fst, --coverage-line, --coverage-toggle]
+      run_options: [--trace]
+
+  # `just elaborate` points Yosys (slang frontend) at these staged
+  # sources -- see regfile.core's `elaborate` target for the full
+  # rationale (why bram_elab_top rather than bram_tb_top).
+  elaborate:
+    filesets: [rtl, elab]
+    toplevel: bram_elab_top
+    flow: lint
+    flow_options:
+      tool: verilator

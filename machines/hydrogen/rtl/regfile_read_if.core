@@ -1,0 +1,16 @@
+CAPI=2:
+name: :hydrogen:regfile_read_if
+description: Hydrogen machine register-file read port interface (see machines/hydrogen/docs/regfile.md)
+
+filesets:
+  rtl:
+    depend:
+      - ":hydrogen:isa_pkg"
+    files:
+      - regfile_read_if.sv
+    file_type: systemVerilogSource
+
+targets:
+  # No toplevel/flow -- not directly runnable, only a dependency target.
+  default:
+    filesets: [rtl]

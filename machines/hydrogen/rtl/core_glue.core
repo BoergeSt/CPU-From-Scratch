@@ -1,0 +1,77 @@
+CAPI=2:
+name: :hydrogen:core_glue
+description: Hydrogen machine core glue -- instruction broadcast, writeback mux, error aggregation (see machines/hydrogen/docs/core_glue.md)
+
+filesets:
+  rtl:
+    depend:
+      - ":hydrogen:isa_pkg"
+      - ":hydrogen:regfile_read_if"
+      - ":hydrogen:regfile_write_if"
+      - ":hydrogen:alu_if"
+      - ":hydrogen:alu_status_if"
+      - ":hydrogen:flow_ctl_if"
+      - ":hydrogen:bus_if"
+    files:
+      - core_glue.sv
+    file_type: systemVerilogSource
+
+  tb_cocotb:
+    files:
+      - tb/core_glue_tb_top.sv
+      - tb/test_core_glue.py: {file_type: user, copyto: .}
+    file_type: systemVerilogSource
+
+  elab:
+    files:
+      - elab/core_glue_elab_top.sv
+    file_type: systemVerilogSource
+
+targets:
+  # Needed so other cores can depend on `:hydrogen:core_glue` (see e.g. a
+  # future machine top-level core).
+  default:
+    filesets: [rtl]
+
+  lint:
+    filesets: [rtl]
+    toplevel: core_glue
+    flow: lint
+    flow_options:
+      tool: verilator
+
+  # Always built with FST waveform tracing enabled -- see alu.core's
+  # identical target.
+  sim:
+    filesets: [rtl, tb_cocotb]
+    toplevel: core_glue_tb_top
+    flow: sim
+    flow_options:
+      tool: verilator
+      cocotb_module: test_core_glue
+      verilator_options: [--trace-fst]
+      run_options: [--trace]
+
+  # Same sim, instrumented for line/branch/toggle coverage (CLAUDE.md's
+  # Coverage decision) -- kept separate from `sim` so everyday runs stay
+  # free of the coverage.dat side output. Drive via `just coverage`, which
+  # also runs verilator_coverage --annotate over the result.
+  coverage:
+    filesets: [rtl, tb_cocotb]
+    toplevel: core_glue_tb_top
+    flow: sim
+    flow_options:
+      tool: verilator
+      cocotb_module: test_core_glue
+      verilator_options: [--trace-fst, --coverage-line, --coverage-toggle]
+      run_options: [--trace]
+
+  # `just elaborate` points Yosys (slang frontend) at these staged
+  # sources -- see regfile.core's `elaborate` target for the general
+  # rationale (why core_glue_elab_top rather than core_glue_tb_top).
+  elaborate:
+    filesets: [rtl, elab]
+    toplevel: core_glue_elab_top
+    flow: lint
+    flow_options:
+      tool: verilator

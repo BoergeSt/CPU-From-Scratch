@@ -76,15 +76,16 @@ Amaranth/debug-strategy items.
   versions; non-breaking changes stay in-place (no new version). This keeps
   the "every commit passes all tests" rule bounded — most changes create no
   new permanently-tested line, only real breaking forks do. File layout
-  mirrors it: `fpga/rtl/peripherals/<name>/v1/`, `v2/`, ...
+  mirrors it once a peripheral exists and a location is settled — see the
+  shared/cross-machine layout item under Open/undecided below.
 - **Machine generations (core + wired-in peripherals + bus, as one
   top-level FuseSoC core) get a codename, not a sequential number.** The
   roadmap's "future directions" are explicitly unordered and not
   all guaranteed to happen — numbering would imply a false strict
   succession. Codename theme: **chemical elements**, in atomic-number order
   as a loose reference ordering only, not a version chain. Layout:
-  `fpga/rtl/machines/<codename>/{alu.sv, regfile.sv, control.sv, ...}` plus
-  a `<codename>.core` wiring in pinned peripheral versions from the shared
+  `machines/<codename>/rtl/{alu.sv, regfile.sv, control.sv, ...}` plus a
+  `<codename>.core` wiring in pinned peripheral versions from the shared
   library.
 
 ## Decided
@@ -245,7 +246,7 @@ Amaranth/debug-strategy items.
   touching that field. The cost is real but different in kind: unused input
   bits are free in synthesis (dead fanout gets pruned), but Verilator's
   unused-signal lint will flag them, so waivers for that are expected and
-  belong in `fpga/sim/` per the repo conventions below. This does not apply
+  belong in that machine's `rtl/sim/` per the repo conventions below. This does not apply
   to `regfile` — its read/write ports stay narrow address+data ports
   regardless, unrelated to this convention.
 - **Register-operand fields that need a regfile read sit at fixed bit
@@ -286,37 +287,49 @@ the decision point if it becomes relevant.
   designing a custom debug protocol (e.g. simple UART monitor/bootloader) from
   scratch too. Not designed yet — deferred along with the rest of the
   hardware bring-up phase.
+- **Shared/cross-machine layout: where do peripherals and cross-module formal
+  verification live?** Repo layout groups everything specific to one machine
+  generation under `machines/<codename>/` (see Repo conventions below), but
+  two things are explicitly designed *not* to belong to any single
+  generation: peripherals (versioned independently via FuseSoC's VLNV model,
+  meant to be referenced — not duplicated — across machine generations, per
+  Versioning & naming above) and cross-module formal verification (bus
+  fabric properties, e.g. arbiter mutual exclusion, that don't belong to any
+  one generation's wiring). Likely candidates are top-level siblings to
+  `machines/` (e.g. `peripherals/`, `tb/formal/`), but not decided — neither
+  exists yet (hydrogen has no peripherals and no bus arbiter so far), so
+  revisit when the first real one is actually being added.
 
 ## Repo conventions
 
 ```
-fpga/                 all RTL/verification side
-  rtl/                  SystemVerilog sources, one module per file
-  rtl/machines/<codename>/<module>.core   per-module FuseSoC core file, alongside
-                          its RTL -- FuseSoC deprecates fileset files living
-                          outside the directory containing the .core file
-  rtl/machines/<codename>/tb/  cocotb Python testbenches for that machine's
+machines/<codename>/   one machine generation -- core + wired-in peripherals
+                        + bus, as one top-level FuseSoC core (see Versioning
+                        & naming above)
+  docs/                  design notes / per-module docs for this machine,
+                          written proactively by Claude as modules are
+                          completed (see Working style notes)
+  rtl/                   SystemVerilog sources, one module per file
+    <module>.core          per-module FuseSoC core file, alongside its RTL --
+                          FuseSoC deprecates fileset files living outside the
+                          directory containing the .core file
+    tb/                    cocotb Python testbenches for this machine's
                           modules, same reasoning -- nested with the RTL +
                           .core file rather than a flat top-level tb/
-  tb/formal/             SVA properties + sby configs (bus fabric, arbiters
-                          first) -- cross-module, so stays top-level
-  sim/                   Verilator waivers only (per-module .core files live
-                          alongside their RTL, see above)
-software/              everything that runs ON the CPU, or builds things that do
-  examples/              sample/test/diagnostic programs (ISA-agnostic placeholder
-                          until the ISA decision below is made)
-  toolchain/             assembler/compiler — only populated if a custom ISA is
-                          chosen; if RISC-V is chosen this stays mostly empty and
-                          software/ is just examples/ + linker scripts, since the
-                          GCC/LLVM toolchain is used as-is
+    sim/                   Verilator waivers for this machine's modules
+  software/              everything that runs ON this machine, or builds
+                          things that do
+    examples/              sample/test/diagnostic programs
+    toolchain/             assembler/compiler targeting this machine's ISA
 scripts/               repo-wide helper scripts (lint runners, coverage report
                         generation, setup) — kept flat for now, split out a
-                        fpga/scripts/ later only if this gets crowded
-docs/                  design notes / per-module & per-program docs, written
-                        proactively by Claude as modules/programs are completed
-                        (see Working style notes)
+                        machines/scripts/ later only if this gets crowded
 .github/workflows/     CI: verible lint -> verilator build+test -> sby formal
 ```
+
+Peripherals (shared across machine generations) and cross-module formal
+verification (`tb/formal/`) don't fit this per-machine tree by design —
+their location is still open, see Open/undecided above.
 
 - Don't commit tool-generated binary project state (this matters more once a
   Vivado/F4PGA target exists — Tcl/script-generated project, not checked-in

@@ -1,0 +1,72 @@
+CAPI=2:
+name: :hydrogen:alu
+description: Hydrogen machine ALU (see machines/hydrogen/docs/alu.md)
+
+filesets:
+  rtl:
+    depend:
+      - ":hydrogen:alu_if"
+      - ":hydrogen:isa_pkg"
+    files:
+      - alu.sv
+    file_type: systemVerilogSource
+
+  tb_cocotb:
+    files:
+      - tb/alu_tb_top.sv
+      - tb/test_alu.py: {file_type: user, copyto: .}
+    file_type: systemVerilogSource
+
+  elab:
+    files:
+      - elab/alu_elab_top.sv
+    file_type: systemVerilogSource
+
+targets:
+  # Needed so other cores can depend on `:hydrogen:alu` (see alu_if.core).
+  default:
+    filesets: [rtl]
+
+  lint:
+    filesets: [rtl]
+    toplevel: alu
+    flow: lint
+    flow_options:
+      tool: verilator
+
+  # Always built with FST waveform tracing enabled -- measured no detectable
+  # cost from leaving it on, so there's no separate untraced target to keep
+  # in sync.
+  sim:
+    filesets: [rtl, tb_cocotb]
+    toplevel: alu_tb_top
+    flow: sim
+    flow_options:
+      tool: verilator
+      cocotb_module: test_alu
+      verilator_options: [--trace-fst]
+      run_options: [--trace]
+
+  # Same sim, instrumented for line/branch/toggle coverage (CLAUDE.md's
+  # Coverage decision) -- kept separate from `sim` so everyday runs stay
+  # free of the coverage.dat side output. Drive via `just coverage`, which
+  # also runs verilator_coverage --annotate over the result.
+  coverage:
+    filesets: [rtl, tb_cocotb]
+    toplevel: alu_tb_top
+    flow: sim
+    flow_options:
+      tool: verilator
+      cocotb_module: test_alu
+      verilator_options: [--trace-fst, --coverage-line, --coverage-toggle]
+      run_options: [--trace]
+
+  # `just elaborate` points Yosys (slang frontend) at these staged
+  # sources -- see regfile.core's `elaborate` target for the full
+  # rationale (why alu_elab_top rather than alu_tb_top).
+  elaborate:
+    filesets: [rtl, elab]
+    toplevel: alu_elab_top
+    flow: lint
+    flow_options:
+      tool: verilator
