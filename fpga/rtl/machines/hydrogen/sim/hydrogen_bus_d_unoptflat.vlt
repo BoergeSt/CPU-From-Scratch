@@ -1,0 +1,17 @@
+// Waives a Verilator UNOPTFLAT false positive on hydrogen's bus_D, only
+// reproducible once the real core_glue and the real bram are wired
+// together (core_glue's own isolated testbench drives bus_D.rdata
+// directly, so the cycle never forms there). core_glue's combinational
+// address/data-in-one-block (bus_D.addr computed from `instruction`;
+// write.value read from bus_D.rdata, both inside the same always_comb)
+// is a real, one-directional, feed-forward dependency: instruction ->
+// bus_D.addr -> (bram) -> bus_D.rdata -> write.value. Verilator's
+// per-block (not per-signal) UNOPTFLAT analysis can't always prove that
+// isn't circular when both sides of a combinational-read memory bus are
+// touched in one procedural block -- see
+// https://verilator.org/warn/UNOPTFLAT. Scoped to bus_if.sv so it only
+// silences this specific interface's instances, not lint generally; only
+// pulled in by hydrogen.core, so it doesn't mask a real UNOPTFLAT
+// elsewhere.
+`verilator_config
+lint_off -rule UNOPTFLAT -file "*/bus_if.sv" -match "*bus_D*"
