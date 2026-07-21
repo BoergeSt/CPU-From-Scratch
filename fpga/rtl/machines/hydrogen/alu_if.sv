@@ -1,5 +1,3 @@
-
-
 interface alu_if;
   import isa_pkg::instr_t;
   instr_t        instruction;
