@@ -376,6 +376,14 @@ practice.
   don't bundle unrelated changes even if they happened in the same session.
   Split further than the authorship boundary above if a single
   author-consistent change still contains more than one logical change.
+- **Pure formatting changes get their own scoped commit, separate from
+  content changes** — a specific case of the atomicity rule above. Exception:
+  when a commit is already touching the lines in question for a content
+  reason (a rename, a logic edit on that line, deleting blank lines while
+  reworking a block, etc.), the formatting on those same lines can ride
+  along rather than forcing an artificial extra commit — the split is about
+  not reformatting *untouched* code alongside unrelated content changes, not
+  about avoiding incidental formatting on lines already being changed.
 - **Every commit must build and pass all tests that exist at that point in
   history.** Run the relevant build (Verilator/FuseSoC) and test suite
   (cocotb, formal where applicable) before finalizing each commit, not just
