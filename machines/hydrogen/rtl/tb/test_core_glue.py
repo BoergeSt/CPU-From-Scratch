@@ -13,14 +13,14 @@ from cocotb.triggers import Timer
 
 SETTLE = Timer(1, unit="ns")
 
-IC_ALU = 0x0
 IC_IMM_SET = 0x1
 IC_FLOW_CTL = 0x2
 IC_LOAD_IMM = 0x3
 IC_STORE_IMM = 0x4
 IC_LOAD = 0x5
 IC_STORE = 0x6
-RESERVED_ICS = [0x7, 0x8, 0x9, 0xA, 0xB, 0xC, 0xD, 0xE, 0xF]
+IC_ALU = 0x7
+RESERVED_ICS = [0x0, 0x8, 0x9, 0xA, 0xB, 0xC, 0xD, 0xE, 0xF]
 
 ALU_OP_ADD = 0x0
 FLOW_CTL_OP_ALWAYS = 0x9
@@ -287,8 +287,8 @@ async def test_flow_ctl_and_reserved_never_write(dut):
 
 @cocotb.test()
 async def test_error_on_reserved_major_opcode(dut):
-    """Any reserved major opcode (0x7-0xF) forces flow_ctl_if.error high
-    (isa.md lists 0x7-0xF as reserved)."""
+    """Any reserved major opcode (0x0, 0x8-0xF) forces flow_ctl_if.error high
+    (isa.md lists 0x0 and 0x8-0xF as reserved)."""
     for ic in RESERVED_ICS:
         await drive(dut, rdata=make_reserved(ic))
         assert int(dut.flow_ctl.error.value) == 1, f"ic={ic:#x}"

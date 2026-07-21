@@ -3,13 +3,13 @@ package isa_pkg;
   localparam logic [31:0] ErrorVector = 32'h0;
 
   typedef enum logic [3:0] {
-    IC_ALU       = 4'h0,
     IC_IMM_SET   = 4'h1,
     IC_FLOW_CTL  = 4'h2,
     IC_LOAD_IMM  = 4'h3,
     IC_STORE_IMM = 4'h4,
     IC_LOAD      = 4'h5,
-    IC_STORE     = 4'h6
+    IC_STORE     = 4'h6,
+    IC_ALU       = 4'h7
   } instr_class_e;
 
   typedef enum logic [2:0] {

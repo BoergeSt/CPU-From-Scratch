@@ -56,6 +56,13 @@ their priority against normal execution. Defined in `isa_pkg.sv` as
 `ResetVector`/`ErrorVector` — not part of the instruction encoding itself,
 since no field in any opcode encodes them.
 
+Major opcode `0x0` is itself a permanently illegal encoding (see Instruction
+encoding below), so a program can choose what happens at `ErrorVector`: left
+unwritten (all-zero), landing there — whether by an actual error or by
+simply falling off the end of the program — re-triggers the same illegal
+encoding indefinitely, a self-perpetuating halt; a real `FLOW_CTL` jump to
+`ResetVector` placed there instead restarts the program.
+
 ## Instruction encoding
 
 Every instruction is a single 32-bit word: a 4-bit major opcode in
@@ -66,22 +73,25 @@ opcode.
 
 | Code | Mnemonic | Meaning |
 |------|----------|---------|
-| `0x0` | `ALU` | ALU operation, register/immediate operands |
+| `0x0` | reserved | Permanently illegal — forces `ErrorVector` (see Design rationale) |
 | `0x1` | `IMM_SET` | Load a 25-bit immediate into a register |
 | `0x2` | `FLOW_CTL` | Jumps and conditional branches — PC control, see below |
 | `0x3` | `LOAD_IMM` | Load from an immediate (fixed) address |
 | `0x4` | `STORE_IMM` | Store to an immediate (fixed) address |
 | `0x5` | `LOAD` | Load from a register-indirect + offset address |
 | `0x6` | `STORE` | Store to a register-indirect + offset address |
-| `0x7`–`0xF` | reserved | Free for future growth |
+| `0x7` | `ALU` | ALU operation, register/immediate operands |
+| `0x8`–`0xF` | reserved | Free for future growth |
 
-Candidates for the reserved range include `FLOW_CTL` variants and sub-word
-load/store, neither designed yet. These values match `isa_pkg.sv`'s
-`instr_class_e` exactly (`IC_ALU`, `IC_IMM_SET`, ...) — that enum is the
-pinned, canonical implementation of this table, not an independent
-numbering (see SV implementation).
+`0x8`–`0xF` are ordinary reserved-for-growth slots (candidates include
+`FLOW_CTL` variants and sub-word load/store, neither designed yet); `0x0` is
+different in kind — deliberately, permanently reserved as an illegal
+encoding, not a future-growth slot (see Design rationale). These values
+match `isa_pkg.sv`'s `instr_class_e` exactly (`IC_ALU`, `IC_IMM_SET`, ...) —
+that enum is the pinned, canonical implementation of this table, not an
+independent numbering (see SV implementation).
 
-### `ALU` — `0x0`
+### `ALU` — `0x7`
 
 | Bits | Field | Width | Description |
 |------|-------|-------|-------------|
@@ -404,7 +414,7 @@ the automatic scoping the language doesn't provide.
 
 ### Reserved encodings
 
-Reserved major-opcode values (`0x7`–`0xF`) and reserved sub-op values
+Reserved major-opcode values (`0x0`, `0x8`–`0xF`) and reserved sub-op values
 (`ALU`'s `0xC`–`0xF`, `FLOW_CTL`'s `0xC`–`0xF`) are not given names in their
 respective enums — only the currently-defined values are. A reserved bit
 pattern still casts into the enum type without error (SV permits any bit
@@ -483,6 +493,18 @@ exhaustiveness, which is the actually-true property here.
 
 ## Design rationale
 
+- **Major opcode `0x0` is permanently reserved as an illegal encoding, not
+  assigned to any instruction class.** `ErrorVector` (see Reset and error
+  vectors above) is word address `0x0`; an all-zero instruction word — what
+  unwritten/uninitialized memory reads as by default — would otherwise
+  decode as a legal instruction (`ALU`'s major opcode used to be `0x0`,
+  making an all-zero word a legal, meaningless `ADD R0, R0, R0`) rather than
+  trapping. Reserving `0x0` itself means any all-zero word, anywhere, is
+  caught by the same reserved-major-opcode mechanism already used for
+  `0x8`–`0xF` (see SV implementation's Reserved encodings), with no new RTL
+  logic. `ALU` moved to `0x7` (the first previously-reserved code) to make
+  room — this doesn't touch `alu_op`'s own numbering, `ALU_OP_ADD` stays
+  `0x0` within the `ALU` class itself.
 - **Word-addressed, not byte-addressed, memory.** There are no sub-word
   (byte/halfword) load/store instructions in this version, so
   byte-addressing's only benefit — addressing an individual byte — is

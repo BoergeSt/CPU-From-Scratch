@@ -24,7 +24,7 @@ NOR = 0xB
 
 MASK32 = 0xFFFF_FFFF
 
-ALU_MAJOR_OPCODE = 0x0
+ALU_MAJOR_OPCODE = 0x7
 IMM_MASK = 0x1FFF  # 13 bits
 
 SETTLE_TIME = Timer(1, unit="ns")

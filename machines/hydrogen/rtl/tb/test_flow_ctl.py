@@ -19,7 +19,7 @@ CLOCK_PERIOD_NS = 10
 SETTLE = Timer(1, unit="ns")
 
 FLOW_CTL_MAJOR_OPCODE = 0x2
-OTHER_MAJOR_OPCODE = 0x0  # ALU -- anything != FLOW_CTL works for self-detection tests
+OTHER_MAJOR_OPCODE = 0x0  # reserved -- anything != FLOW_CTL works for self-detection tests
 
 NOP = 0x0
 L = 0x1

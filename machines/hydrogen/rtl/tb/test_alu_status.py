@@ -13,7 +13,7 @@ from cocotb.triggers import RisingEdge, Timer
 CLOCK_PERIOD_NS = 10
 SETTLE = Timer(1, unit="ns")
 
-ALU_MAJOR_OPCODE = 0x0
+ALU_MAJOR_OPCODE = 0x7
 OTHER_MAJOR_OPCODE = 0x2  # FLOW_CTL -- anything != ALU works for self-detection tests
 
 
