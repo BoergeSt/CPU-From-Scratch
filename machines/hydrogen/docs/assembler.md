@@ -127,6 +127,20 @@ Target forms:
   resolves directly to its absolute word address — these opcodes have no
   relative mode.
 
+Any number of labels may share a line, and a line's labels may be followed by
+an instruction on the same line — all of them resolve to that instruction's
+address:
+
+```
+loop:                  ; a label alone, on its own line
+entry: reset:          ; multiple labels, same address, no instruction
+loop: add R0, R0, R0   ; a label immediately ahead of an instruction
+```
+
+A label must still be its own whitespace-separated token (`label:`, no space
+before the colon) at the start of the line — content after the label(s) is
+either more labels or a single instruction, never a label trailing after one.
+
 ## Placement
 
 `.org <address>` sets the word address for what follows. Hydrogen's two
