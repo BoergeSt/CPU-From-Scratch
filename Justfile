@@ -184,6 +184,48 @@ view core:
     fi
     surfer "$dump"
 
+# Run a Hydrogen program on the real core, e.g. `just run
+# machines/hydrogen/software/examples/factorial.S`. Accepts either a .S
+# source file (auto-assembled first via `just assemble`) or an already-
+# assembled .bin -- run.py has no way to tell source from bytecode, so
+# feeding it source directly loads the raw text as "instructions"
+# (garbage). Cycle count via the optional second arg (default 1000).
+# Always traces -- `just view-run` afterward, same "never forces a resim"
+# reasoning as `view`. hydrogen.core's `run` target loads $HYDROGEN_PROGRAM
+# into BRAM hierarchically (tb/run.py) rather than running the fixed
+# directed suite.
+run program cycles="1000":
+    #!/usr/bin/env sh
+    set -eu
+    case "{{program}}" in
+        *.S|*.s)
+            bin="{{without_extension(program)}}.bin"
+            just assemble "{{program}}"
+            ;;
+        *)
+            bin="{{program}}"
+            ;;
+    esac
+    podman run --rm --userns=keep-id -e HOME=/tmp \
+        -e HYDROGEN_PROGRAM=/work/"$bin" -e HYDROGEN_CYCLES={{cycles}} \
+        -v "{{justfile_directory()}}":/work:Z -w /work fpga-toolchain:dev \
+        fusesoc --cores-root machines run --target=run :hydrogen:hydrogen
+
+# Open the trace from the most recent `just run`.
+view-run:
+    #!/usr/bin/env sh
+    set -eu
+    dump="build/hydrogen_hydrogen_0/run/dump.fst"
+    if ! command -v surfer >/dev/null 2>&1; then
+        echo "surfer not found on PATH -- see README.md's Optional tools section to install it" >&2
+        exit 1
+    fi
+    if [ ! -f "$dump" ]; then
+        echo "no trace found at $dump -- run 'just run <program>' first" >&2
+        exit 1
+    fi
+    surfer "$dump"
+
 # Elaborate a core through Yosys (slang frontend) as a generic,
 # technology-independent netlist -- no target device, just structure/
 # synthesizability (generic cells). The core's `elaborate` target (e.g.

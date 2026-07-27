@@ -33,6 +33,14 @@ filesets:
     files:
       - tb/test_hydrogen.py: {file_type: user, copyto: .}
 
+  # Separate from tb_cocotb: `run` loads an arbitrary assembled program
+  # (path via $HYDROGEN_PROGRAM, see tb/run.py) rather than running the
+  # fixed directed wiring-sanity tests -- kept apart so `just sim` stays
+  # the fast, no-external-input directed suite.
+  tb_run:
+    files:
+      - tb/run.py: {file_type: user, copyto: .}
+
 targets:
   # Needed so other cores can depend on `:hydrogen:hydrogen` (see e.g. a
   # future full-SoC top wiring in peripherals).
@@ -70,6 +78,20 @@ targets:
       tool: verilator
       cocotb_module: test_hydrogen
       verilator_options: [--trace-fst, --coverage-line, --coverage-toggle]
+      run_options: [--trace]
+
+  # Loads and runs an arbitrary assembled program instead of the fixed
+  # directed tb_cocotb suite -- see tb/run.py. Driven by `just run`, which
+  # sets $HYDROGEN_PROGRAM (and optionally $HYDROGEN_CYCLES). Always
+  # traced, same as `sim`, so `just view-run` has something to open.
+  run:
+    filesets: [rtl, tb_run]
+    toplevel: hydrogen
+    flow: sim
+    flow_options:
+      tool: verilator
+      cocotb_module: run
+      verilator_options: [--trace-fst]
       run_options: [--trace]
 
   # `just elaborate` points Yosys (slang frontend) at these staged
