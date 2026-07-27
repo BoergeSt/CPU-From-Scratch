@@ -52,6 +52,7 @@ happen:**
   by a bridge (the "bridges" already named in the Overview's system scope)
 - Secure-boot-style PoC (mechanism/concept only, no real security guarantee)
 - Checksums/ECC
+- HW watchdogs
 - Very far ahead: simple branch prediction
 
 **Software/toolchain ambition — beyond last time's basic assembler:**
