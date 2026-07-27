@@ -39,18 +39,18 @@ package isa_pkg;
   } alu_op_e;
 
   typedef enum logic [3:0] {
-    FLOW_CTL_OP_NOP = 4'h0,
-    FLOW_CTL_OP_LESS = 4'h1,
-    FLOW_CTL_OP_LESS_EQUAL = 4'h2,
-    FLOW_CTL_OP_GREATER = 4'h3,
+    FLOW_CTL_OP_NOP           = 4'h0,
+    FLOW_CTL_OP_LESS          = 4'h1,
+    FLOW_CTL_OP_LESS_EQUAL    = 4'h2,
+    FLOW_CTL_OP_GREATER       = 4'h3,
     FLOW_CTL_OP_GREATER_EQUAL = 4'h4,
-    FLOW_CTL_OP_ZERO = 4'h5,
-    FLOW_CTL_OP_NOT_ZERO = 4'h6,
-    FLOW_CTL_OP_EQUAL = 4'h7,
-    FLOW_CTL_OP_NOT_EQUAL = 4'h8,
-    FLOW_CTL_OP_ALWAYS = 4'h9,
-    FLOW_CTL_OP_OVERFLOW = 4'hA,
-    FLOW_CTL_OP_NOT_OVERFLOW = 4'hB
+    FLOW_CTL_OP_ZERO          = 4'h5,
+    FLOW_CTL_OP_NOT_ZERO      = 4'h6,
+    FLOW_CTL_OP_EQUAL         = 4'h7,
+    FLOW_CTL_OP_NOT_EQUAL     = 4'h8,
+    FLOW_CTL_OP_ALWAYS        = 4'h9,
+    FLOW_CTL_OP_OVERFLOW      = 4'hA,
+    FLOW_CTL_OP_NOT_OVERFLOW  = 4'hB
   } flow_op_e;
 
   typedef struct packed {
@@ -74,11 +74,11 @@ package isa_pkg;
   } alu_instr_t;
 
   typedef struct packed {
-    logic [12:0] reserved;
-    reg_addr_e   jump_to_addr;
+    logic [12:0] reserved;      // [21:9]
+    reg_addr_e   jump_to_addr;  // [8:6]
   } flow_ctl_target_reg_t;
 
-  typedef struct packed {logic [15:0] imm;} flow_ctl_target_imm_t;
+  typedef struct packed {logic [15:0] imm;} flow_ctl_target_imm_t;  // [21:6]
 
   typedef union packed {
     flow_ctl_target_reg_t is_reg;
@@ -98,33 +98,33 @@ package isa_pkg;
   typedef struct packed {
     instr_class_e ic;    // [31:28]
     reg_addr_e    dest;  // [27:25]
-    logic [24:0]  imm;   //[24:0]
+    logic [24:0]  imm;   // [24:0]
   } imm_set_instr_t;
 
   typedef struct packed {
-    instr_class_e ic;
-    reg_addr_e    dest;
-    logic [24:0]  imm;
+    instr_class_e ic;    // [31:28]
+    reg_addr_e    dest;  // [27:25]
+    logic [24:0]  imm;   // [24:0]
   } load_imm_instr_t;
 
   typedef struct packed {
-    instr_class_e ic;
-    logic [24:0]  imm;
-    reg_addr_e    src;
+    instr_class_e ic;   // [31:28]
+    logic [24:0]  imm;  // [27:3]
+    reg_addr_e    src;  // [2:0]
   } store_imm_instr_t;
 
   typedef struct packed {
-    instr_class_e ic;
-    reg_addr_e    dest;
-    logic [21:0]  offset;
-    reg_addr_e    base;
+    instr_class_e ic;      // [31:28]
+    reg_addr_e    dest;    // [27:25]
+    logic [21:0]  offset;  // [24:3]
+    reg_addr_e    base;    // [2:0]
   } load_instr_t;
 
   typedef struct packed {
-    instr_class_e ic;
-    logic [21:0]  offset;
-    reg_addr_e    src;
-    reg_addr_e    base;
+    instr_class_e ic;      // [31:28]
+    logic [21:0]  offset;  // [27:6]
+    reg_addr_e    src;     // [5:3]
+    reg_addr_e    base;    // [2:0]
   } store_instr_t;
 
   typedef union packed {
