@@ -3,6 +3,18 @@
 toolchain-build:
     podman build -t fpga-toolchain:dev -f scripts/fpga-toolchain.Dockerfile scripts/
 
+# Assemble a Hydrogen source file into a raw binary image (assembler.md),
+# e.g. `just assemble machines/hydrogen/software/examples/factorial.S`.
+# Output is the input path with its extension replaced by .bin. Runs on
+# the host (gcc + python3), not the container -- the assembler is a plain
+# host-side tool, not part of the Verilator/Yosys toolchain.
+assemble file:
+    #!/usr/bin/env sh
+    set -eu
+    out="{{without_extension(file)}}.bin"
+    gcc -E -P -x c "{{file}}" | python3 machines/hydrogen/software/toolchain/assemble.py - -o "$out"
+    echo "assembled: $out"
+
 # Run a FuseSoC target against a core -- internal helper, use `lint`/`sim` below.
 _fusesoc target core:
     podman run --rm --userns=keep-id -e HOME=/tmp -v "{{justfile_directory()}}":/work:Z -w /work fpga-toolchain:dev \
