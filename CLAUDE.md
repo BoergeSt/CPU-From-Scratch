@@ -288,18 +288,22 @@ the decision point if it becomes relevant.
   designing a custom debug protocol (e.g. simple UART monitor/bootloader) from
   scratch too. Not designed yet — deferred along with the rest of the
   hardware bring-up phase.
-- **Shared/cross-machine layout: where do peripherals and cross-module formal
-  verification live?** Repo layout groups everything specific to one machine
-  generation under `machines/<codename>/` (see Repo conventions below), but
-  two things are explicitly designed *not* to belong to any single
-  generation: peripherals (versioned independently via FuseSoC's VLNV model,
-  meant to be referenced — not duplicated — across machine generations, per
-  Versioning & naming above) and cross-module formal verification (bus
-  fabric properties, e.g. arbiter mutual exclusion, that don't belong to any
-  one generation's wiring). Likely candidates are top-level siblings to
-  `machines/` (e.g. `peripherals/`, `tb/formal/`), but not decided — neither
-  exists yet (hydrogen has no peripherals and no bus arbiter so far), so
-  revisit when the first real one is actually being added.
+- **Peripheral / cross-module formal verification layout: where do
+  peripherals and cross-module formal verification live?** Repo layout
+  groups everything specific to one machine generation under
+  `machines/<codename>/` (see Repo conventions below), but two things are
+  explicitly designed *not* to belong to any single generation: peripherals
+  (versioned independently via FuseSoC's VLNV model, meant to be referenced
+  — not duplicated — across machine generations, per Versioning & naming
+  above) and cross-module formal verification (bus fabric properties, e.g.
+  arbiter mutual exclusion, that don't belong to any one generation's
+  wiring). Likely candidates are top-level siblings to `machines/` (e.g.
+  `peripherals/`, `tb/formal/`), but not decided — neither exists yet
+  (hydrogen has no peripherals and no bus arbiter so far), so revisit when
+  the first real one is actually being added. (Generic, non-peripheral,
+  non-bus-attached shared components — no dependency on any
+  machine-specific state — are a separate, already-decided case: `common/`,
+  per Repo conventions, settled when `common/fifo/` was added.)
 
 ## Repo conventions
 
@@ -322,6 +326,12 @@ machines/<codename>/   one machine generation -- core + wired-in peripherals
                           things that do
     examples/              sample/test/diagnostic programs
     toolchain/             assembler/compiler targeting this machine's ISA
+common/                 generic, reusable RTL components with no dependency
+                        on any machine-specific state (ISA, bus protocol,
+                        address map) and not a peripheral either (e.g. a
+                        FIFO) — mirrors machines/<codename>/'s internal
+                        layout (docs/, rtl/, rtl/tb/) per component, one
+                        subdirectory per component (e.g. common/fifo/)
 scripts/               repo-wide helper scripts (lint runners, coverage report
                         generation, setup) — kept flat for now, split out a
                         machines/scripts/ later only if this gets crowded
@@ -330,7 +340,9 @@ scripts/               repo-wide helper scripts (lint runners, coverage report
 
 Peripherals (shared across machine generations) and cross-module formal
 verification (`tb/formal/`) don't fit this per-machine tree by design —
-their location is still open, see Open/undecided above.
+their location is still open, see Open/undecided above. Generic,
+non-peripheral, non-bus-attached shared components live under `common/`
+instead, one subdirectory per component — see `common/fifo/`.
 
 - Don't commit tool-generated binary project state (this matters more once a
   Vivado/F4PGA target exists — Tcl/script-generated project, not checked-in
