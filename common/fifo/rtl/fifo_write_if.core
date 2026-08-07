@@ -1,0 +1,14 @@
+CAPI=2:
+name: :common:fifo_write_if
+description: Generic FIFO write-side interface (see common/fifo/docs/fifo.md)
+
+filesets:
+  rtl:
+    files:
+      - fifo_write_if.sv
+    file_type: systemVerilogSource
+
+targets:
+  # No toplevel/flow -- not directly runnable, only a dependency target.
+  default:
+    filesets: [rtl]

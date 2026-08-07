@@ -1,0 +1,14 @@
+CAPI=2:
+name: :common:fifo_read_if
+description: Generic FIFO read-side interface (see common/fifo/docs/fifo.md)
+
+filesets:
+  rtl:
+    files:
+      - fifo_read_if.sv
+    file_type: systemVerilogSource
+
+targets:
+  # No toplevel/flow -- not directly runnable, only a dependency target.
+  default:
+    filesets: [rtl]

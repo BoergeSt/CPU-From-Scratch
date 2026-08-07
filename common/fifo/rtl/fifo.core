@@ -1,0 +1,79 @@
+CAPI=2:
+name: :common:fifo
+description: Generic reusable synchronous FIFO (see common/fifo/docs/fifo.md)
+
+filesets:
+  rtl:
+    depend:
+      - ":common:fifo_write_if"
+      - ":common:fifo_read_if"
+    files:
+      - fifo.sv
+    file_type: systemVerilogSource
+
+  tb_cocotb:
+    files:
+      - tb/fifo_tb_top.sv
+      - tb/test_fifo.py: {file_type: user, copyto: .}
+    file_type: systemVerilogSource
+
+  elab:
+    files:
+      - elab/fifo_elab_top.sv
+    file_type: systemVerilogSource
+
+targets:
+  # Needed so other cores can depend on `:common:fifo`.
+  default:
+    filesets: [rtl]
+
+  lint:
+    filesets: [rtl]
+    toplevel: fifo
+    flow: lint
+    flow_options:
+      tool: verilator
+
+  # Always built with FST waveform tracing enabled -- see alu.core's
+  # identical target. Needs fifo_tb_top (tb/fifo_tb_top.sv) as toplevel,
+  # not fifo directly -- interface ports (fifo_write_if/fifo_read_if)
+  # aren't supported on a cocotb sim toplevel under Verilator.
+  sim:
+    filesets: [rtl, tb_cocotb]
+    toplevel: fifo_tb_top
+    flow: sim
+    flow_options:
+      tool: verilator
+      cocotb_module: test_fifo
+      verilator_options: [--trace-fst]
+      run_options: [--trace]
+
+  # Same sim, instrumented for line/branch/toggle coverage (CLAUDE.md's
+  # Coverage decision) -- kept separate from `sim` so everyday runs stay
+  # free of the coverage.dat side output. Drive via `just coverage`, which
+  # also runs verilator_coverage --annotate over the result.
+  coverage:
+    filesets: [rtl, tb_cocotb]
+    toplevel: fifo_tb_top
+    flow: sim
+    flow_options:
+      tool: verilator
+      cocotb_module: test_fifo
+      verilator_options: [--trace-fst, --coverage-line, --coverage-toggle]
+      run_options: [--trace]
+
+  # `just elaborate` points Yosys (slang frontend) at these staged sources
+  # -- flow/tool here is just FuseSoC's staging mechanism, the real
+  # netlist comes from Yosys, not Verilator. Needs fifo_elab_top rather
+  # than fifo directly -- a bare interface port on a true elaboration top
+  # isn't connectable to anything, same reasoning as regfile.core's
+  # identical target. Deliberately not fifo_tb_top -- that top has no data
+  # output ports (cocotb reads/drives it hierarchically instead), so
+  # Yosys's opt pass would delete the whole FIFO as unused; fifo_elab_top
+  # exists solely to give opt real outputs to keep alive.
+  elaborate:
+    filesets: [rtl, elab]
+    toplevel: fifo_elab_top
+    flow: lint
+    flow_options:
+      tool: verilator
