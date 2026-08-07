@@ -16,9 +16,16 @@ assemble file:
     echo "assembled: $out"
 
 # Run a FuseSoC target against a core -- internal helper, use `lint`/`sim` below.
+# Two --cores-root flags (machines/, common/): FuseSoC's --cores-root is an
+# append-action option, so each root needs its own flag, not a
+# space-separated list -- confirmed against fusesoc/main.py in the pinned
+# image. common/ holds shared, non-machine-specific components (e.g.
+# common/fifo/, see CLAUDE.md's Repo conventions) that a machine core may
+# come to depend on, so it must be on the cores-root list whenever any core
+# is resolved, not just :common:* cores themselves.
 _fusesoc target core:
     podman run --rm --userns=keep-id -e HOME=/tmp -v "{{justfile_directory()}}":/work:Z -w /work fpga-toolchain:dev \
-        fusesoc --cores-root machines run --target={{target}} "{{core}}"
+        fusesoc --cores-root machines --cores-root common run --target={{target}} "{{core}}"
 
 # Lint a core, e.g. `just lint :hydrogen:alu`
 lint core: (_fusesoc "lint" core)
@@ -106,9 +113,46 @@ check-machine machine:
 # Check every core in the hydrogen machine.
 check-hydrogen: (check-machine "hydrogen")
 
-# Check every core in every machine under machines/. Same as
-# `check-hydrogen` today since hydrogen is the only machine that exists yet
-# -- stays correct without edits once more machine codenames show up.
+# Check every "checkable" core under common/ (shared, non-machine-specific
+# components, e.g. common/fifo/ -- see CLAUDE.md's Repo conventions), e.g.
+# `just check-common`. Same "checkable" discovery and quiet-unless-failing
+# convention as check-machine, just rooted at common/*/rtl/ instead of one
+# machines/<name>/rtl/, and with no per-directory wrapper recipe since
+# common/ isn't split into named generations the way machines/ is.
+check-common:
+    #!/usr/bin/env sh
+    set -u
+    failed=0
+    summary=$(mktemp)
+    trap 'rm -f "$summary"' EXIT
+    for core_file in common/*/rtl/*.core; do
+        [ -e "$core_file" ] || continue
+        name=$(basename "$core_file" .core)
+        grep -q '^  lint:' "$core_file" || continue
+        printf 'checking :common:%s ... ' "$name"
+        output=$(just check ":common:$name" 2>&1)
+        status=$?
+        result=$(printf '%s\n' "$output" | grep -oE 'TESTS=[0-9]+ PASS=[0-9]+ FAIL=[0-9]+ SKIP=[0-9]+' | tail -1)
+        if [ "$status" -ne 0 ]; then
+            failed=1
+            status_word="FAILED"
+            [ -z "$result" ] && result="LINT/BUILD FAILED"
+            echo "FAILED"
+            printf '%s\n' "$output"
+        else
+            status_word="ok"
+            echo "ok"
+        fi
+        printf '%s\t%s\t%s\n' "$name" "$status_word" "$result" >> "$summary"
+    done
+    printf '\n=== check-common summary ===\n'
+    python3 scripts/format-check-summary.py < "$summary"
+    exit $failed
+
+# Check every core in every machine under machines/, plus every core under
+# common/. Same as `check-hydrogen` today since hydrogen is the only
+# machine that exists yet -- stays correct without edits once more machine
+# codenames show up.
 check-all:
     #!/usr/bin/env sh
     set -u
@@ -116,6 +160,7 @@ check-all:
     for dir in machines/*/; do
         just check-machine "$(basename "$dir")" || failed=1
     done
+    just check-common || failed=1
     exit $failed
 
 # Run coverage for every "checkable" core in one machine, e.g.
@@ -153,8 +198,41 @@ coverage-machine machine:
 # Coverage for every core in the hydrogen machine.
 coverage-hydrogen: (coverage-machine "hydrogen")
 
-# Coverage for every core in every machine under machines/. Same
-# "stays correct as machines are added" reasoning as check-all.
+# Coverage for every "coverable" core under common/, e.g.
+# `just coverage-common`. Same discovery/summary pattern as
+# coverage-machine, rooted at common/*/rtl/ -- see check-common's identical
+# reasoning.
+coverage-common:
+    #!/usr/bin/env sh
+    set -u
+    failed=0
+    summary=$(mktemp)
+    trap 'rm -f "$summary"' EXIT
+    for core_file in common/*/rtl/*.core; do
+        [ -e "$core_file" ] || continue
+        name=$(basename "$core_file" .core)
+        grep -q '^  coverage:' "$core_file" || continue
+        printf 'coverage :common:%s ... ' "$name"
+        output=$(just coverage ":common:$name" 2>&1)
+        status=$?
+        if [ "$status" -ne 0 ]; then
+            failed=1
+            status_word="FAILED"
+            echo "FAILED"
+            printf '%s\n' "$output"
+        else
+            status_word="ok"
+            echo "ok"
+        fi
+        printf '### %s\t%s\n%s\n' "$name" "$status_word" "$output" >> "$summary"
+    done
+    printf '\n=== coverage-common summary ===\n'
+    python3 scripts/format-coverage-summary.py < "$summary"
+    exit $failed
+
+# Coverage for every core in every machine under machines/, plus every core
+# under common/. Same "stays correct as machines are added" reasoning as
+# check-all.
 coverage-all:
     #!/usr/bin/env sh
     set -u
@@ -162,6 +240,7 @@ coverage-all:
     for dir in machines/*/; do
         just coverage-machine "$(basename "$dir")" || failed=1
     done
+    just coverage-common || failed=1
     exit $failed
 
 # Open an already-built trace in Surfer, e.g. `just view :hydrogen:alu`.
@@ -209,7 +288,7 @@ run program cycles="1000":
     podman run --rm --userns=keep-id -e HOME=/tmp \
         -e HYDROGEN_PROGRAM=/work/"$bin" -e HYDROGEN_CYCLES={{cycles}} \
         -v "{{justfile_directory()}}":/work:Z -w /work fpga-toolchain:dev \
-        fusesoc --cores-root machines run --target=run :hydrogen:hydrogen
+        fusesoc --cores-root machines --cores-root common run --target=run :hydrogen:hydrogen
 
 # Open the trace from the most recent `just run`.
 view-run:
@@ -302,8 +381,33 @@ elaborate-machine machine:
 # Elaborate every core in the hydrogen machine.
 elaborate-hydrogen: (elaborate-machine "hydrogen")
 
-# Elaborate every core in every machine under machines/. Same
-# "stays correct as machines are added" reasoning as check-all.
+# Elaborate every "elaboratable" core under common/, e.g.
+# `just elaborate-common`. Same discovery pattern as elaborate-machine,
+# rooted at common/*/rtl/ -- see check-common's identical reasoning.
+elaborate-common:
+    #!/usr/bin/env sh
+    set -u
+    failed=0
+    for core_file in common/*/rtl/*.core; do
+        [ -e "$core_file" ] || continue
+        name=$(basename "$core_file" .core)
+        grep -q '^  elaborate:' "$core_file" || continue
+        printf 'elaborating :common:%s ... ' "$name"
+        output=$(just elaborate ":common:$name" 2>&1)
+        status=$?
+        if [ "$status" -ne 0 ]; then
+            failed=1
+            echo "FAILED"
+            printf '%s\n' "$output"
+        else
+            echo "ok"
+        fi
+    done
+    exit $failed
+
+# Elaborate every core in every machine under machines/, plus every core
+# under common/. Same "stays correct as machines are added" reasoning as
+# check-all.
 elaborate-all:
     #!/usr/bin/env sh
     set -u
@@ -311,9 +415,10 @@ elaborate-all:
     for dir in machines/*/; do
         just elaborate-machine "$(basename "$dir")" || failed=1
     done
+    just elaborate-common || failed=1
     exit $failed
 
-# List every FuseSoC core discoverable under machines
+# List every FuseSoC core discoverable under machines/ or common/
 core-list:
     podman run --rm --userns=keep-id -e HOME=/tmp -v "{{justfile_directory()}}":/work:Z -w /work fpga-toolchain:dev \
-        fusesoc --cores-root machines core list
+        fusesoc --cores-root machines --cores-root common core list
