@@ -6,8 +6,53 @@ bus.value1/bus.value2, awaits a small settle delay, then checks
 bus.result/bus.overflow/bus.error.
 """
 
+import functools
+
 import cocotb
 from cocotb.triggers import Timer
+
+# Mirrors alu_tb_top.sv's test_phase_e -- order must match the SV
+# declaration (index + 1, since PHASE_IDLE is 0). phased_test() below uses
+# this to drive dut.dbg_test_phase, which shows the currently-running test
+# by name in the waveform (Surfer/GTKWave enum decode) -- all tests below
+# share one simulation run and one continuous waveform dump, so this is
+# what makes a given test's slice of the timeline identifiable at all.
+PHASE_NAMES = [
+    "test_add",
+    "test_sub",
+    "test_mul",
+    "test_mulh",
+    "test_lshift",
+    "test_rshift",
+    "test_and",
+    "test_or",
+    "test_xor",
+    "test_not",
+    "test_nand",
+    "test_nor",
+    "test_reserved_opcodes_flag_error",
+    "test_imm_as_src1",
+    "test_imm_as_src2",
+    "test_imm_operand_order_preserved_for_sub",
+]
+
+
+def phased_test(func):
+    """Drive dut.dbg_test_phase to func's matching test_phase_e value for
+    the duration of the test, back to PHASE_IDLE afterward."""
+
+    phase = PHASE_NAMES.index(func.__name__) + 1
+
+    @functools.wraps(func)
+    async def wrapper(dut, *args, **kwargs):
+        dut.dbg_test_phase.value = phase
+        try:
+            await func(dut, *args, **kwargs)
+        finally:
+            dut.dbg_test_phase.value = 0
+
+    return wrapper
+
 
 ADD = 0x0
 SUB = 0x1
@@ -210,7 +255,7 @@ def _make_test(operation, cases, name):
 
 
 for _name, _opcode, _cases in OPS:
-    globals()[f"test_{_name}"] = cocotb.test()(_make_test(_opcode, _cases, _name))
+    globals()[f"test_{_name}"] = cocotb.test()(phased_test(_make_test(_opcode, _cases, _name)))
 
 
 RESERVED_OPCODES = [0xC, 0xD, 0xE, 0xF]
@@ -223,6 +268,7 @@ RESERVED_OPERAND_CASES = [
 
 
 @cocotb.test()
+@phased_test
 async def test_reserved_opcodes_flag_error(dut):
     """Every reserved opcode (0xC-0xF) drives bus.result=0, bus.overflow=0,
     bus.error=1 regardless of operands -- see alu.md's Errors section and
@@ -252,6 +298,7 @@ IMM_SRC2_CASES = [
 
 
 @cocotb.test()
+@phased_test
 async def test_imm_as_src1(dut):
     """is_imm_src1=1 substitutes `imm` for value1 -- bus.value1 (the raw
     register read) is ignored/don't-care in this case."""
@@ -261,6 +308,7 @@ async def test_imm_as_src1(dut):
 
 
 @cocotb.test()
+@phased_test
 async def test_imm_as_src2(dut):
     """is_imm_src2=1 substitutes `imm` for value2 -- bus.value2 (the raw
     register read) is ignored/don't-care in this case."""
@@ -270,6 +318,7 @@ async def test_imm_as_src2(dut):
 
 
 @cocotb.test()
+@phased_test
 async def test_imm_operand_order_preserved_for_sub(dut):
     """SUB is order-sensitive -- confirms an immediate substituted for src1
     vs src2 lands on the correct side of the subtraction, not just that
