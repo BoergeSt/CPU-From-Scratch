@@ -8,8 +8,63 @@ latched_overflow, flow_ctl_if.pc, bus_if_D.rdata/ack -- awaits a settle
 delay, then checks the side core_glue computes.
 """
 
+import functools
+
 import cocotb
 from cocotb.triggers import Timer
+
+# Mirrors core_glue_tb_top.sv's test_phase_e -- order must match the SV
+# declaration (index + 1, since PHASE_IDLE is 0). phased_test() below uses
+# this to drive dut.dbg_test_phase, which shows the currently-running test
+# by name in the waveform (Surfer/GTKWave enum decode) -- all tests below
+# share one simulation run and one continuous waveform dump, so this is
+# what makes a given test's slice of the timeline identifiable at all.
+PHASE_NAMES = [
+    "test_register_read_addresses_always_tap_fixed_positions",
+    "test_instruction_broadcast_to_every_functional_unit",
+    "test_alu_and_flow_ctl_share_read1_read2_value",
+    "test_flow_ctl_goto_val_from_read3",
+    "test_alu_status_receives_live_alu_overflow",
+    "test_flow_ctl_receives_latched_overflow",
+    "test_i_bus_fetches_at_pc_every_cycle",
+    "test_bus_d_disabled_for_non_d_bus_opcodes",
+    "test_alu_writeback",
+    "test_alu_writeback_suppressed_on_error",
+    "test_imm_set_writeback",
+    "test_flow_ctl_and_reserved_never_write",
+    "test_error_on_reserved_major_opcode",
+    "test_error_on_alu_illegal_encoding",
+    "test_alu_error_ignored_when_not_alu_instruction",
+    "test_no_error_on_legal_instructions",
+    "test_error_on_i_bus_ack_failure",
+    "test_error_on_d_bus_ack_failure",
+    "test_load_imm",
+    "test_store_imm",
+    "test_load_effective_address_and_writeback",
+    "test_store_effective_address_and_no_writeback",
+    "test_load_effective_address_underflow_forces_error",
+    "test_load_effective_address_overflow_forces_error",
+    "test_store_effective_address_underflow_forces_error",
+    "test_store_effective_address_overflow_forces_error",
+]
+
+
+def phased_test(func):
+    """Drive dut.dbg_test_phase to func's matching test_phase_e value for
+    the duration of the test, back to PHASE_IDLE afterward."""
+
+    phase = PHASE_NAMES.index(func.__name__) + 1
+
+    @functools.wraps(func)
+    async def wrapper(dut, *args, **kwargs):
+        dut.dbg_test_phase.value = phase
+        try:
+            await func(dut, *args, **kwargs)
+        finally:
+            dut.dbg_test_phase.value = 0
+
+    return wrapper
+
 
 SETTLE = Timer(1, unit="ns")
 
@@ -136,6 +191,7 @@ async def drive(
 
 
 @cocotb.test()
+@phased_test
 async def test_register_read_addresses_always_tap_fixed_positions(dut):
     """read1/read2/read3.addr mirror instruction bits [2:0]/[5:3]/[8:6]
     unconditionally, regardless of major opcode -- no opcode-dependent
@@ -158,6 +214,7 @@ async def test_register_read_addresses_always_tap_fixed_positions(dut):
 
 
 @cocotb.test()
+@phased_test
 async def test_instruction_broadcast_to_every_functional_unit(dut):
     """The fetched instruction word (bus_if_I.rdata) is broadcast unchanged
     to alu_if/flow_ctl_if/alu_status_if.instruction -- CLAUDE.md's
@@ -170,6 +227,7 @@ async def test_instruction_broadcast_to_every_functional_unit(dut):
 
 
 @cocotb.test()
+@phased_test
 async def test_alu_and_flow_ctl_share_read1_read2_value(dut):
     """alu_if.value1/value2 and flow_ctl_if.value1/value2 both mirror
     regfile read1/read2.value -- the same physical read ports serve both
@@ -183,6 +241,7 @@ async def test_alu_and_flow_ctl_share_read1_read2_value(dut):
 
 
 @cocotb.test()
+@phased_test
 async def test_flow_ctl_goto_val_from_read3(dut):
     """flow_ctl_if.goto_val mirrors regfile read3.value -- the
     register-indirect jump target (flow_ctl.md)."""
@@ -192,6 +251,7 @@ async def test_flow_ctl_goto_val_from_read3(dut):
 
 
 @cocotb.test()
+@phased_test
 async def test_alu_status_receives_live_alu_overflow(dut):
     """alu_status_if.overflow mirrors the ALU's live bus.overflow, forwarded
     unconditionally every cycle (alu_status.md)."""
@@ -204,6 +264,7 @@ async def test_alu_status_receives_live_alu_overflow(dut):
 
 
 @cocotb.test()
+@phased_test
 async def test_flow_ctl_receives_latched_overflow(dut):
     """flow_ctl_if.overflow mirrors alu_status_if.latched_overflow, not the
     ALU's live flag -- flow_ctl.md's overflow/not_overflow conditions read
@@ -217,6 +278,7 @@ async def test_flow_ctl_receives_latched_overflow(dut):
 
 
 @cocotb.test()
+@phased_test
 async def test_i_bus_fetches_at_pc_every_cycle(dut):
     """bus_if_I.addr follows flow_ctl_if.pc, enable is permanently 1 (fetch
     happens every cycle unconditionally), we is permanently 0 (bus.md)."""
@@ -230,6 +292,7 @@ async def test_i_bus_fetches_at_pc_every_cycle(dut):
 
 
 @cocotb.test()
+@phased_test
 async def test_bus_d_disabled_for_non_d_bus_opcodes(dut):
     """bus_if_D.enable stays 0 for every opcode that doesn't touch the
     D-bus -- ALU/IMM_SET/FLOW_CTL/reserved."""
@@ -244,6 +307,7 @@ async def test_bus_d_disabled_for_non_d_bus_opcodes(dut):
 
 
 @cocotb.test()
+@phased_test
 async def test_alu_writeback(dut):
     """A legal ALU instruction writes alu_if.result to regfile at
     instruction.generic.dest, enable=1."""
@@ -255,6 +319,7 @@ async def test_alu_writeback(dut):
 
 
 @cocotb.test()
+@phased_test
 async def test_alu_writeback_suppressed_on_error(dut):
     """An illegal ALU encoding (alu_error=1) suppresses the regfile write --
     write.enable stays 0, so the ALU's result never commits on its way to
@@ -265,6 +330,7 @@ async def test_alu_writeback_suppressed_on_error(dut):
 
 
 @cocotb.test()
+@phased_test
 async def test_imm_set_writeback(dut):
     """IMM_SET writes its zero-extended 25-bit immediate to regfile at
     instruction.generic.dest, enable=1."""
@@ -276,6 +342,7 @@ async def test_imm_set_writeback(dut):
 
 
 @cocotb.test()
+@phased_test
 async def test_flow_ctl_and_reserved_never_write(dut):
     """FLOW_CTL and reserved major opcodes never assert regfile enable --
     neither ever writes a GPR (flow_ctl.md)."""
@@ -286,6 +353,7 @@ async def test_flow_ctl_and_reserved_never_write(dut):
 
 
 @cocotb.test()
+@phased_test
 async def test_error_on_reserved_major_opcode(dut):
     """Any reserved major opcode (0x0, 0x8-0xF) forces flow_ctl_if.error high
     (isa.md lists 0x0 and 0x8-0xF as reserved)."""
@@ -295,6 +363,7 @@ async def test_error_on_reserved_major_opcode(dut):
 
 
 @cocotb.test()
+@phased_test
 async def test_error_on_alu_illegal_encoding(dut):
     """alu_if.error, when the active instruction is actually ALU, forces
     flow_ctl_if.error high (isa.md's Errors)."""
@@ -304,6 +373,7 @@ async def test_error_on_alu_illegal_encoding(dut):
 
 
 @cocotb.test()
+@phased_test
 async def test_alu_error_ignored_when_not_alu_instruction(dut):
     """alu_if.error is gated by the real instruction class -- garbage bits
     at the ALU's field positions during a non-ALU instruction must not trip
@@ -316,6 +386,7 @@ async def test_alu_error_ignored_when_not_alu_instruction(dut):
 
 
 @cocotb.test()
+@phased_test
 async def test_no_error_on_legal_instructions(dut):
     """A legal ALU (no error), IMM_SET, or FLOW_CTL instruction leaves
     flow_ctl_if.error low."""
@@ -329,6 +400,7 @@ async def test_no_error_on_legal_instructions(dut):
 
 
 @cocotb.test()
+@phased_test
 async def test_error_on_i_bus_ack_failure(dut):
     """An I-bus fetch that fails to ack forces flow_ctl_if.error high
     (bus.md's ack semantics)."""
@@ -337,6 +409,7 @@ async def test_error_on_i_bus_ack_failure(dut):
 
 
 @cocotb.test()
+@phased_test
 async def test_error_on_d_bus_ack_failure(dut):
     """A D-bus access that fails to ack forces flow_ctl_if.error high, but
     only when bus_D.enable is actually asserted -- an opcode that never
@@ -351,6 +424,7 @@ async def test_error_on_d_bus_ack_failure(dut):
 
 
 @cocotb.test()
+@phased_test
 async def test_load_imm(dut):
     """LOAD_IMM: bus_D.addr is the zero-extended 25-bit imm, enable=1,
     we=0; write.addr=dest, write.value=bus_D.rdata, write.enable=1 --
@@ -368,6 +442,7 @@ async def test_load_imm(dut):
 
 
 @cocotb.test()
+@phased_test
 async def test_store_imm(dut):
     """STORE_IMM: bus_D.addr is the zero-extended 25-bit imm, enable=1,
     we=1, wdata=src's value (read_1, since src sits at the universal [2:0]
@@ -389,6 +464,7 @@ LOAD_STORE_OFFSET_CASES = [
 
 
 @cocotb.test()
+@phased_test
 async def test_load_effective_address_and_writeback(dut):
     """LOAD's effective address is base's value + offset, offset
     interpreted as two's complement (isa.md); write.addr=dest,
@@ -406,6 +482,7 @@ async def test_load_effective_address_and_writeback(dut):
 
 
 @cocotb.test()
+@phased_test
 async def test_store_effective_address_and_no_writeback(dut):
     """STORE's effective address is base's value + offset, same semantics
     as LOAD; wdata=src's value (read_2, since src sits at the universal
@@ -422,6 +499,7 @@ async def test_store_effective_address_and_no_writeback(dut):
 
 
 @cocotb.test()
+@phased_test
 async def test_load_effective_address_underflow_forces_error(dut):
     """LOAD: if the true (unbounded) base + offset sum is negative, that's
     an error -- same treatment as flow_ctl's relative-jump underflow
@@ -434,6 +512,7 @@ async def test_load_effective_address_underflow_forces_error(dut):
 
 
 @cocotb.test()
+@phased_test
 async def test_load_effective_address_overflow_forces_error(dut):
     """LOAD: if the true sum exceeds 2**32-1, same treatment as the
     underflow case above."""
@@ -444,6 +523,7 @@ async def test_load_effective_address_overflow_forces_error(dut):
 
 
 @cocotb.test()
+@phased_test
 async def test_store_effective_address_underflow_forces_error(dut):
     """STORE: same underflow treatment as LOAD."""
     instr = make_store(offset=-10, src=3, base=2)
@@ -453,6 +533,7 @@ async def test_store_effective_address_underflow_forces_error(dut):
 
 
 @cocotb.test()
+@phased_test
 async def test_store_effective_address_overflow_forces_error(dut):
     """STORE: same overflow treatment as LOAD."""
     instr = make_store(offset=16, src=3, base=2)
