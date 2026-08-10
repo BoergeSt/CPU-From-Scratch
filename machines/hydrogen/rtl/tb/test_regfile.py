@@ -6,9 +6,49 @@ Each test starts its own clock and drives its own reset to a known state,
 since DUT register contents persist across tests within one simulation run.
 """
 
+import functools
+
 import cocotb
 from cocotb.clock import Clock
 from cocotb.triggers import RisingEdge, Timer
+
+# Mirrors regfile_tb_top.sv's test_phase_e -- order must match the SV
+# declaration (index + 1, since PHASE_IDLE is 0). phased_test() below uses
+# this to drive dut.dbg_test_phase, which shows the currently-running test
+# by name in the waveform (Surfer/GTKWave enum decode) -- all tests below
+# share one simulation run and one continuous waveform dump, so this is
+# what makes a given test's slice of the timeline identifiable at all.
+PHASE_NAMES = [
+    "test_reset_clears_all_registers",
+    "test_reset_overrides_writes_and_simultaneous_write",
+    "test_write_read_back_all_registers_via_read1",
+    "test_write_read_back_all_registers_via_read2",
+    "test_write_read_back_all_registers_via_read3",
+    "test_read_ports_independent_different_addresses",
+    "test_read_ports_agree_same_address",
+    "test_write_does_not_disturb_other_registers",
+    "test_enable_low_has_no_effect",
+    "test_write_pulse_persists",
+    "test_read_during_write_same_address",
+]
+
+
+def phased_test(func):
+    """Drive dut.dbg_test_phase to func's matching test_phase_e value for
+    the duration of the test, back to PHASE_IDLE afterward."""
+
+    phase = PHASE_NAMES.index(func.__name__) + 1
+
+    @functools.wraps(func)
+    async def wrapper(dut, *args, **kwargs):
+        dut.dbg_test_phase.value = phase
+        try:
+            await func(dut, *args, **kwargs)
+        finally:
+            dut.dbg_test_phase.value = 0
+
+    return wrapper
+
 
 CLOCK_PERIOD_NS = 10
 SETTLE = Timer(1, unit="ns")
@@ -67,6 +107,7 @@ async def read3(dut, addr):
 
 
 @cocotb.test()
+@phased_test
 async def test_reset_clears_all_registers(dut):
     """After POR, every register R0-R7 reads back as 0."""
     await start(dut)
@@ -76,6 +117,7 @@ async def test_reset_clears_all_registers(dut):
 
 
 @cocotb.test()
+@phased_test
 async def test_reset_overrides_writes_and_simultaneous_write(dut):
     """Reset unconditionally wins: it clears prior writes AND discards a
     write attempted on the same edge reset is asserted."""
@@ -101,6 +143,7 @@ async def test_reset_overrides_writes_and_simultaneous_write(dut):
 
 
 @cocotb.test()
+@phased_test
 async def test_write_read_back_all_registers_via_read1(dut):
     await start(dut)
     values = {addr: make_value(addr, 0xBEEF) for addr in range(NUM_REGS)}
@@ -114,6 +157,7 @@ async def test_write_read_back_all_registers_via_read1(dut):
 
 
 @cocotb.test()
+@phased_test
 async def test_write_read_back_all_registers_via_read2(dut):
     await start(dut)
     values = {addr: make_value(addr, 0xC0DE) for addr in range(NUM_REGS)}
@@ -127,6 +171,7 @@ async def test_write_read_back_all_registers_via_read2(dut):
 
 
 @cocotb.test()
+@phased_test
 async def test_write_read_back_all_registers_via_read3(dut):
     await start(dut)
     values = {addr: make_value(addr, 0x7E57) for addr in range(NUM_REGS)}
@@ -140,6 +185,7 @@ async def test_write_read_back_all_registers_via_read3(dut):
 
 
 @cocotb.test()
+@phased_test
 async def test_read_ports_independent_different_addresses(dut):
     """read1/read2/read3 addressed at three different registers don't
     interfere with each other."""
@@ -170,6 +216,7 @@ async def test_read_ports_independent_different_addresses(dut):
 
 
 @cocotb.test()
+@phased_test
 async def test_read_ports_agree_same_address(dut):
     """read1/read2/read3 addressed at the same register return identical
     data."""
@@ -193,6 +240,7 @@ async def test_read_ports_agree_same_address(dut):
 
 
 @cocotb.test()
+@phased_test
 async def test_write_does_not_disturb_other_registers(dut):
     """Writing register N never changes any other register's value --
     checked after each of the 8 writes in sequence, not just once."""
@@ -211,6 +259,7 @@ async def test_write_does_not_disturb_other_registers(dut):
 
 
 @cocotb.test()
+@phased_test
 async def test_enable_low_has_no_effect(dut):
     await start(dut)
     await write_reg(dut, 4, 0x1234_5678)
@@ -228,6 +277,7 @@ async def test_enable_low_has_no_effect(dut):
 
 
 @cocotb.test()
+@phased_test
 async def test_write_pulse_persists(dut):
     """A single-cycle enable pulse's value survives further idle cycles,
     even while addr/value keep changing (enable stays low)."""
@@ -247,6 +297,7 @@ async def test_write_pulse_persists(dut):
 
 
 @cocotb.test()
+@phased_test
 async def test_read_during_write_same_address(dut):
     """Reading the register currently being written (e.g. `ADD R1,R1,...`):
     the combinational read shows the old value right up to the clock edge,
