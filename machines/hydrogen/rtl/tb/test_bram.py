@@ -7,9 +7,49 @@ whatever it depends on reading. Combinational reads, synchronous writes
 (bus_D only); bus_I is read-only.
 """
 
+import functools
+
 import cocotb
 from cocotb.clock import Clock
 from cocotb.triggers import RisingEdge, Timer
+
+# Mirrors bram_tb_top.sv's test_phase_e -- order must match the SV
+# declaration (index + 1, since PHASE_IDLE is 0). phased_test() below uses
+# this to drive dut.dbg_test_phase, which shows the currently-running test
+# by name in the waveform (Surfer/GTKWave enum decode) -- all tests below
+# share one simulation run and one continuous waveform dump, so this is
+# what makes a given test's slice of the timeline identifiable at all.
+PHASE_NAMES = [
+    "test_write_read_back_via_bus_D",
+    "test_bus_I_sees_writes_made_via_bus_D",
+    "test_bus_I_we_is_ignored",
+    "test_disabled_port_returns_zero_rdata_and_ack",
+    "test_ack_boundary_at_size",
+    "test_out_of_range_read_returns_zero",
+    "test_out_of_range_write_has_no_effect",
+    "test_bus_I_and_bus_D_independent_same_cycle",
+    "test_write_pulse_persists",
+    "test_read_during_write_same_port_same_address",
+    "test_bus_I_read_during_bus_D_write_same_address",
+]
+
+
+def phased_test(func):
+    """Drive dut.dbg_test_phase to func's matching test_phase_e value for
+    the duration of the test, back to PHASE_IDLE afterward."""
+
+    phase = PHASE_NAMES.index(func.__name__) + 1
+
+    @functools.wraps(func)
+    async def wrapper(dut, *args, **kwargs):
+        dut.dbg_test_phase.value = phase
+        try:
+            await func(dut, *args, **kwargs)
+        finally:
+            dut.dbg_test_phase.value = 0
+
+    return wrapper
+
 
 CLOCK_PERIOD_NS = 10
 SETTLE = Timer(1, unit="ns")
@@ -58,6 +98,7 @@ async def read_port(port, addr, enable=1):
 
 
 @cocotb.test()
+@phased_test
 async def test_write_read_back_via_bus_D(dut):
     """Words written via bus_D read back correctly via bus_D."""
     await start(dut)
@@ -74,6 +115,7 @@ async def test_write_read_back_via_bus_D(dut):
 
 
 @cocotb.test()
+@phased_test
 async def test_bus_I_sees_writes_made_via_bus_D(dut):
     """bus_I and bus_D address the same underlying storage -- a write
     through bus_D is visible through bus_I."""
@@ -91,6 +133,7 @@ async def test_bus_I_sees_writes_made_via_bus_D(dut):
 
 
 @cocotb.test()
+@phased_test
 async def test_bus_I_we_is_ignored(dut):
     """Driving bus_I.we high never modifies storage -- bus_I is read-only."""
     await start(dut)
@@ -116,6 +159,7 @@ async def test_bus_I_we_is_ignored(dut):
 
 
 @cocotb.test()
+@phased_test
 async def test_disabled_port_returns_zero_rdata_and_ack(dut):
     """A port with enable=0 reads rdata=0, ack=0, regardless of what's
     actually stored at that address."""
@@ -132,6 +176,7 @@ async def test_disabled_port_returns_zero_rdata_and_ack(dut):
 
 
 @cocotb.test()
+@phased_test
 async def test_ack_boundary_at_size(dut):
     """ack is 1 for the last in-range address (Size-1) and 0 for the first
     out-of-range address (Size), for both ports."""
@@ -150,6 +195,7 @@ async def test_ack_boundary_at_size(dut):
 
 
 @cocotb.test()
+@phased_test
 async def test_out_of_range_read_returns_zero(dut):
     """An enabled read past Size returns rdata=0, ack=0, on both ports."""
     await start(dut)
@@ -160,6 +206,7 @@ async def test_out_of_range_read_returns_zero(dut):
 
 
 @cocotb.test()
+@phased_test
 async def test_out_of_range_write_has_no_effect(dut):
     """A bus_D write attempt past Size doesn't corrupt neighboring in-range
     storage and doesn't itself become readable."""
@@ -179,6 +226,7 @@ async def test_out_of_range_write_has_no_effect(dut):
 
 
 @cocotb.test()
+@phased_test
 async def test_bus_I_and_bus_D_independent_same_cycle(dut):
     """bus_I and bus_D addressed at different words in the same cycle don't
     interfere with each other."""
@@ -213,6 +261,7 @@ async def test_bus_I_and_bus_D_independent_same_cycle(dut):
 
 
 @cocotb.test()
+@phased_test
 async def test_write_pulse_persists(dut):
     """A single-cycle write pulse's value survives further idle cycles on
     bus_D, even while addr/wdata keep changing (enable/we stay low)."""
@@ -236,6 +285,7 @@ async def test_write_pulse_persists(dut):
 
 
 @cocotb.test()
+@phased_test
 async def test_read_during_write_same_port_same_address(dut):
     """bus_D reading its own rdata while simultaneously writing the same
     address: rdata shows the old value right up to the clock edge, and the
@@ -270,6 +320,7 @@ async def test_read_during_write_same_port_same_address(dut):
 
 
 @cocotb.test()
+@phased_test
 async def test_bus_I_read_during_bus_D_write_same_address(dut):
     """bus_I reading the exact word bus_D is writing that cycle: the
     combinational read shows the old value right up to the clock edge, and
