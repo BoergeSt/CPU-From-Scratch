@@ -11,9 +11,53 @@ bus.value1/bus.value2/bus.goto directly, as if already resolved, and leave
 those bit positions in bus.instruction as don't-care (0).
 """
 
+import functools
+
 import cocotb
 from cocotb.clock import Clock
 from cocotb.triggers import RisingEdge, Timer
+
+# Mirrors flow_ctl_tb_top.sv's test_phase_e -- order must match the SV
+# declaration (index + 1, since PHASE_IDLE is 0). phased_test() below uses
+# this to drive dut.dbg_test_phase, which shows the currently-running test
+# by name in the waveform (Surfer/GTKWave enum decode) -- all tests below
+# share one simulation run and one continuous waveform dump, so this is
+# what makes a given test's slice of the timeline identifiable at all.
+PHASE_NAMES = [
+    "test_reset_sets_reset_vector",
+    "test_non_flow_ctl_major_opcode_is_nop_regardless_of_other_bits",
+    "test_flow_ctl_nop_ignores_everything",
+    "test_conditions",
+    "test_val2_ignored_where_documented",
+    "test_target_absolute_register_indirect",
+    "test_target_relative_register_indirect",
+    "test_relative_target_underflow_forces_error_vector",
+    "test_relative_target_overflow_forces_error_vector",
+    "test_target_absolute_immediate",
+    "test_target_relative_immediate",
+    "test_error_forces_error_vector",
+    "test_error_forces_error_vector_even_for_non_flow_ctl_major_opcode",
+    "test_reserved_op_forces_error_vector",
+    "test_reset_overrides_error_and_condition",
+]
+
+
+def phased_test(func):
+    """Drive dut.dbg_test_phase to func's matching test_phase_e value for
+    the duration of the test, back to PHASE_IDLE afterward."""
+
+    phase = PHASE_NAMES.index(func.__name__) + 1
+
+    @functools.wraps(func)
+    async def wrapper(dut, *args, **kwargs):
+        dut.dbg_test_phase.value = phase
+        try:
+            await func(dut, *args, **kwargs)
+        finally:
+            dut.dbg_test_phase.value = 0
+
+    return wrapper
+
 
 CLOCK_PERIOD_NS = 10
 SETTLE = Timer(1, unit="ns")
@@ -85,6 +129,7 @@ async def step(dut, opcode, value1=0, value2=0, goto=0, overflow=0, error=0):
 
 
 @cocotb.test()
+@phased_test
 async def test_reset_sets_reset_vector(dut):
     """After POR, bus.pc reads back as ResetVector (0x10), not 0 --
     flow_ctl.md's rationale for reserving 0x0-0xF as a fixed error-handler
@@ -97,6 +142,7 @@ async def test_reset_sets_reset_vector(dut):
 
 
 @cocotb.test()
+@phased_test
 async def test_non_flow_ctl_major_opcode_is_nop_regardless_of_other_bits(dut):
     """Self-detection: any major opcode other than FLOW_CTL forces the
     never-taken path internally, even when the sub-bits happen to encode
@@ -112,6 +158,7 @@ async def test_non_flow_ctl_major_opcode_is_nop_regardless_of_other_bits(dut):
 
 
 @cocotb.test()
+@phased_test
 async def test_flow_ctl_nop_ignores_everything(dut):
     """op=NOP (0x0) is never-taken regardless of r/i/imm/operands -- same
     encoding self-detection forces for non-FLOW_CTL instructions."""
@@ -165,6 +212,7 @@ UNSIGNED_COMPARISON_CASES = [
 
 
 @cocotb.test()
+@phased_test
 async def test_conditions(dut):
     """Each op's condition, taken and not-taken. Uses absolute
     register-indirect targeting (r=0, i=0) to isolate condition evaluation
@@ -193,6 +241,7 @@ async def test_conditions(dut):
 
 
 @cocotb.test()
+@phased_test
 async def test_val2_ignored_where_documented(dut):
     """z/nz/always don't depend on val2 -- confirm varying it doesn't change
     the taken outcome (isa.md/flow_ctl.md's 'ignored' column)."""
@@ -209,6 +258,7 @@ async def test_val2_ignored_where_documented(dut):
 
 
 @cocotb.test()
+@phased_test
 async def test_target_absolute_register_indirect(dut):
     """i=0, r=0: target = goto, used directly (unsigned)."""
     await start(dut)
@@ -220,6 +270,7 @@ async def test_target_absolute_register_indirect(dut):
 
 
 @cocotb.test()
+@phased_test
 async def test_target_relative_register_indirect(dut):
     """i=0, r=1: target = pc + goto, goto interpreted as signed."""
     await start(dut)
@@ -244,6 +295,7 @@ async def test_target_relative_register_indirect(dut):
 
 
 @cocotb.test()
+@phased_test
 async def test_relative_target_underflow_forces_error_vector(dut):
     """r=1: if the *true* (unbounded) pc + target sum is negative, that's
     treated as an error rather than silently wrapping -- flow_ctl.md's
@@ -258,6 +310,7 @@ async def test_relative_target_underflow_forces_error_vector(dut):
 
 
 @cocotb.test()
+@phased_test
 async def test_relative_target_overflow_forces_error_vector(dut):
     """r=1: if the true sum exceeds 2**32-1, same treatment as the
     underflow case above."""
@@ -278,6 +331,7 @@ async def test_relative_target_overflow_forces_error_vector(dut):
 
 
 @cocotb.test()
+@phased_test
 async def test_target_absolute_immediate(dut):
     """i=1, r=0: target = imm, zero-extended (unsigned)."""
     await start(dut)
@@ -289,6 +343,7 @@ async def test_target_absolute_immediate(dut):
 
 
 @cocotb.test()
+@phased_test
 async def test_target_relative_immediate(dut):
     """i=1, r=1: target = pc + imm, imm sign-extended (two's complement)."""
     await start(dut)
@@ -313,6 +368,7 @@ async def test_target_relative_immediate(dut):
 
 
 @cocotb.test()
+@phased_test
 async def test_error_forces_error_vector(dut):
     """error_i overrides a taken jump unconditionally."""
     await start(dut)
@@ -325,6 +381,7 @@ async def test_error_forces_error_vector(dut):
 
 
 @cocotb.test()
+@phased_test
 async def test_error_forces_error_vector_even_for_non_flow_ctl_major_opcode(dut):
     """error_i overrides self-detection too -- flow_ctl.md's priority order
     puts error_i above the condition/fall-through step, and major-opcode
@@ -342,6 +399,7 @@ RESERVED_OPS = [0xC, 0xD, 0xE, 0xF]
 
 
 @cocotb.test()
+@phased_test
 async def test_reserved_op_forces_error_vector(dut):
     """Reserved op values (0xC-0xF) on a real FLOW_CTL instruction are
     illegal, not a no-op -- flow_ctl.md's Design rationale: they land in the
@@ -361,6 +419,7 @@ async def test_reserved_op_forces_error_vector(dut):
 
 
 @cocotb.test()
+@phased_test
 async def test_reset_overrides_error_and_condition(dut):
     """rst_i wins even over a simultaneous error_i + taken jump."""
     await start(dut)
