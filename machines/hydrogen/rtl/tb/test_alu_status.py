@@ -6,9 +6,44 @@ test starts its own clock and drives its own reset to a known state, since
 the DUT's latched_overflow persists across tests within one simulation run.
 """
 
+import functools
+
 import cocotb
 from cocotb.clock import Clock
 from cocotb.triggers import RisingEdge, Timer
+
+# Mirrors alu_status_tb_top.sv's test_phase_e -- order must match the SV
+# declaration (index + 1, since PHASE_IDLE is 0). phased_test() below uses
+# this to drive dut.dbg_test_phase, which shows the currently-running test
+# by name in the waveform (Surfer/GTKWave enum decode) -- all tests below
+# share one simulation run and one continuous waveform dump, so this is
+# what makes a given test's slice of the timeline identifiable at all.
+PHASE_NAMES = [
+    "test_reset_clears_overflow",
+    "test_alu_cycle_captures_overflow_i",
+    "test_non_alu_cycle_holds_previous_value",
+    "test_non_alu_major_opcode_ignores_overflow_i_regardless_of_value",
+    "test_consecutive_alu_cycles_track_live_value",
+    "test_reset_overrides_capture",
+]
+
+
+def phased_test(func):
+    """Drive dut.dbg_test_phase to func's matching test_phase_e value for
+    the duration of the test, back to PHASE_IDLE afterward."""
+
+    phase = PHASE_NAMES.index(func.__name__) + 1
+
+    @functools.wraps(func)
+    async def wrapper(dut, *args, **kwargs):
+        dut.dbg_test_phase.value = phase
+        try:
+            await func(dut, *args, **kwargs)
+        finally:
+            dut.dbg_test_phase.value = 0
+
+    return wrapper
+
 
 CLOCK_PERIOD_NS = 10
 SETTLE = Timer(1, unit="ns")
@@ -45,6 +80,7 @@ async def step(dut, opcode, overflow_i):
 
 
 @cocotb.test()
+@phased_test
 async def test_reset_clears_overflow(dut):
     """After POR, overflow_o reads back as 0."""
     await start(dut)
@@ -53,6 +89,7 @@ async def test_reset_clears_overflow(dut):
 
 
 @cocotb.test()
+@phased_test
 async def test_alu_cycle_captures_overflow_i(dut):
     """An ALU-major-opcode cycle captures the live overflow_i, both
     directions (0->1 and 1->0)."""
@@ -67,6 +104,7 @@ async def test_alu_cycle_captures_overflow_i(dut):
 
 
 @cocotb.test()
+@phased_test
 async def test_non_alu_cycle_holds_previous_value(dut):
     """A non-ALU-major-opcode cycle leaves overflow_o unchanged, even while
     overflow_i (meaningless that cycle) varies -- the latched value must
@@ -87,6 +125,7 @@ async def test_non_alu_cycle_holds_previous_value(dut):
 
 
 @cocotb.test()
+@phased_test
 async def test_non_alu_major_opcode_ignores_overflow_i_regardless_of_value(dut):
     """Self-detection: any major opcode other than ALU forces the hold path
     internally, even when overflow_i happens to equal the currently-latched
@@ -106,6 +145,7 @@ async def test_non_alu_major_opcode_ignores_overflow_i_regardless_of_value(dut):
 
 
 @cocotb.test()
+@phased_test
 async def test_consecutive_alu_cycles_track_live_value(dut):
     """Back-to-back ALU cycles each capture that cycle's own overflow_i --
     not just the first or last of a run."""
@@ -121,6 +161,7 @@ async def test_consecutive_alu_cycles_track_live_value(dut):
 
 
 @cocotb.test()
+@phased_test
 async def test_reset_overrides_capture(dut):
     """rst_i wins even over a simultaneous ALU cycle with overflow_i=1."""
     await start(dut)
