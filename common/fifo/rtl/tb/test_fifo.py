@@ -24,12 +24,54 @@ Each test starts its own clock and drives its own reset to a known state,
 since DUT state persists across tests within one simulation run.
 """
 
+import functools
 import random
 from collections import deque
 
 import cocotb
 from cocotb.clock import Clock
 from cocotb.triggers import RisingEdge, Timer
+
+# Mirrors fifo_tb_top.sv's test_phase_e -- order must match the SV
+# declaration (index + 1, since PHASE_IDLE is 0). phased_test() below uses
+# this to drive dut.dbg_test_phase, which shows the currently-running test
+# by name in the waveform (Surfer/GTKWave enum decode) -- all tests below
+# share one simulation run and one continuous waveform dump, so this is
+# what makes a given test's slice of the timeline identifiable at all.
+PHASE_NAMES = [
+    "test_reset_state",
+    "test_data_o_zero_when_idle",
+    "test_single_write_then_read",
+    "test_fifo_ordering",
+    "test_fill_to_full",
+    "test_drain_to_empty",
+    "test_overflow_write_while_full",
+    "test_underflow_read_while_empty",
+    "test_simultaneous_we_re_on_empty",
+    "test_simultaneous_we_re_on_full",
+    "test_simultaneous_we_re_midrange",
+    "test_overflow_underflow_are_combinational_not_sticky",
+    "test_reset_mid_operation",
+    "test_wraparound",
+]
+
+
+def phased_test(func):
+    """Drive dut.dbg_test_phase to func's matching test_phase_e value for
+    the duration of the test, back to PHASE_IDLE afterward."""
+
+    phase = PHASE_NAMES.index(func.__name__) + 1
+
+    @functools.wraps(func)
+    async def wrapper(dut, *args, **kwargs):
+        dut.dbg_test_phase.value = phase
+        try:
+            await func(dut, *args, **kwargs)
+        finally:
+            dut.dbg_test_phase.value = 0
+
+    return wrapper
+
 
 CLOCK_PERIOD_NS = 10
 SETTLE = Timer(1, unit="ns")
@@ -110,6 +152,7 @@ async def read_elem(dut):
 
 
 @cocotb.test()
+@phased_test
 async def test_reset_state(dut):
     """After POR: empty, fill=0, full=0, data=0 with read.enable low."""
     await start(dut)
@@ -121,6 +164,7 @@ async def test_reset_state(dut):
 
 
 @cocotb.test()
+@phased_test
 async def test_data_o_zero_when_idle(dut):
     """read.data stays 0 whenever read.enable is low, even with elements
     queued."""
@@ -134,6 +178,7 @@ async def test_data_o_zero_when_idle(dut):
 
 
 @cocotb.test()
+@phased_test
 async def test_single_write_then_read(dut):
     await start(dut)
     value = make_value(0xBEEF)
@@ -149,6 +194,7 @@ async def test_single_write_then_read(dut):
 
 
 @cocotb.test()
+@phased_test
 async def test_fifo_ordering(dut):
     """Values dequeue in the same order they were enqueued."""
     await start(dut)
@@ -163,6 +209,7 @@ async def test_fifo_ordering(dut):
 
 
 @cocotb.test()
+@phased_test
 async def test_fill_to_full(dut):
     """Writing SIZE elements sequentially fills the queue exactly, with
     fill/full/empty correct at every step."""
@@ -180,6 +227,7 @@ async def test_fill_to_full(dut):
 
 
 @cocotb.test()
+@phased_test
 async def test_drain_to_empty(dut):
     """After filling to SIZE, reading SIZE elements drains it exactly, in
     order, with fill/full/empty correct at every step."""
@@ -201,6 +249,7 @@ async def test_drain_to_empty(dut):
 
 
 @cocotb.test()
+@phased_test
 async def test_overflow_write_while_full(dut):
     """A write attempted while full is dropped: overflow is set exactly
     while write.enable is held against a full queue, state/data are
@@ -233,6 +282,7 @@ async def test_overflow_write_while_full(dut):
 
 
 @cocotb.test()
+@phased_test
 async def test_underflow_read_while_empty(dut):
     """A read attempted while empty returns 0 and sets underflow for
     exactly as long as read.enable is held, with no state change."""
@@ -252,6 +302,7 @@ async def test_underflow_read_while_empty(dut):
 
 
 @cocotb.test()
+@phased_test
 async def test_simultaneous_we_re_on_empty(dut):
     """write.enable and read.enable together on an empty queue: the write
     is accepted, but read.enable still sees pre-cycle empty=1 and
@@ -274,6 +325,7 @@ async def test_simultaneous_we_re_on_empty(dut):
 
 
 @cocotb.test()
+@phased_test
 async def test_simultaneous_we_re_on_full(dut):
     """write.enable and read.enable together on a full queue: the read is
     accepted (dequeues the oldest value), but write.enable still sees
@@ -305,6 +357,7 @@ async def test_simultaneous_we_re_on_full(dut):
 
 
 @cocotb.test()
+@phased_test
 async def test_simultaneous_we_re_midrange(dut):
     """write.enable and read.enable together when neither full nor empty:
     both succeed, net fill is unchanged, no error flags set."""
@@ -331,6 +384,7 @@ async def test_simultaneous_we_re_midrange(dut):
 
 
 @cocotb.test()
+@phased_test
 async def test_overflow_underflow_are_combinational_not_sticky(dut):
     """write.overflow/read.underflow track write.enable/read.enable &&
     full/empty combinationally, not as an edge-triggered pulse or a latch:
@@ -364,6 +418,7 @@ async def test_overflow_underflow_are_combinational_not_sticky(dut):
 
 
 @cocotb.test()
+@phased_test
 async def test_reset_mid_operation(dut):
     """Asserting rst_i while elements are queued clears fill/empty/full
     immediately, and previously queued elements are not dequeuable
@@ -393,6 +448,7 @@ async def test_reset_mid_operation(dut):
 
 
 @cocotb.test()
+@phased_test
 async def test_wraparound(dut):
     """Sustained write/read traffic that pushes cumulative operations well
     past SIZE, oscillating occupancy so the queue never goes full or empty,
