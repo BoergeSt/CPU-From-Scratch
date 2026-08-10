@@ -24,14 +24,17 @@ filesets:
       - elab/hydrogen_elab_top.sv
     file_type: systemVerilogSource
 
-  # No tb_top wrapper needed here, unlike every other module's tb_cocotb
-  # fileset: hydrogen has no interface ports (only clk_i/rst_i, already
-  # plain), so there's nothing for a wrapper to flatten -- cocotb drives
-  # `hydrogen` directly and reaches submodule state (regfile.registers,
-  # bram.bram) hierarchically.
+  # hydrogen_tb_top.sv isn't flattening interface ports like every other
+  # module's tb_top.sv (hydrogen has none -- only clk_i/rst_i, already
+  # plain); it exists solely to host the debug-only test-phase signal (see
+  # the file itself). cocotb still reaches submodule state
+  # (regfile.registers, bram.bram) hierarchically, just one level deeper
+  # via .dut. now.
   tb_cocotb:
     files:
+      - tb/hydrogen_tb_top.sv
       - tb/test_hydrogen.py: {file_type: user, copyto: .}
+    file_type: systemVerilogSource
 
   # Separate from tb_cocotb: `run` loads an arbitrary assembled program
   # (path via $HYDROGEN_PROGRAM, see tb/run.py) rather than running the
@@ -58,7 +61,7 @@ targets:
   # identical target.
   sim:
     filesets: [rtl, tb_cocotb]
-    toplevel: hydrogen
+    toplevel: hydrogen_tb_top
     flow: sim
     flow_options:
       tool: verilator
@@ -72,7 +75,7 @@ targets:
   # also runs verilator_coverage --annotate over the result.
   coverage:
     filesets: [rtl, tb_cocotb]
-    toplevel: hydrogen
+    toplevel: hydrogen_tb_top
     flow: sim
     flow_options:
       tool: verilator

@@ -10,9 +10,42 @@ clocked through the real fetch/decode/writeback loop, with results read
 back from the real register file / BRAM contents, also hierarchically.
 """
 
+import functools
+
 import cocotb
 from cocotb.clock import Clock
 from cocotb.triggers import RisingEdge, Timer
+
+# Mirrors hydrogen_tb_top.sv's test_phase_e -- order must match the SV
+# declaration (index + 1, since PHASE_IDLE is 0). phased_test() below uses
+# this to drive dut.dbg_test_phase, which shows the currently-running test
+# by name in the waveform (Surfer/GTKWave enum decode) -- all tests below
+# share one simulation run and one continuous waveform dump, so this is
+# what makes a given test's slice of the timeline identifiable at all.
+PHASE_NAMES = [
+    "test_reset_vector_and_registers",
+    "test_fetch_decode_writeback_round_trip",
+    "test_store_load_round_trip_through_d_bus",
+    "test_branch_redirects_real_pc",
+]
+
+
+def phased_test(func):
+    """Drive dut.dbg_test_phase to func's matching test_phase_e value for
+    the duration of the test, back to PHASE_IDLE afterward."""
+
+    phase = PHASE_NAMES.index(func.__name__) + 1
+
+    @functools.wraps(func)
+    async def wrapper(dut, *args, **kwargs):
+        dut.dbg_test_phase.value = phase
+        try:
+            await func(dut, *args, **kwargs)
+        finally:
+            dut.dbg_test_phase.value = 0
+
+    return wrapper
+
 
 CLOCK_PERIOD_NS = 10
 SETTLE = Timer(1, unit="ns")
@@ -64,7 +97,7 @@ def load_program(dut, words, base=RESET_VECTOR):
     to get a program in: nothing external can drive the I-bus, the core
     itself owns it."""
     for offset, word in enumerate(words):
-        dut.bram.bram[base + offset].value = word
+        dut.dut.bram.bram[base + offset].value = word
 
 
 async def start(dut):
@@ -77,23 +110,25 @@ async def start(dut):
 
 
 def read_reg(dut, addr):
-    return int(dut.regfile.registers[addr].value)
+    return int(dut.dut.regfile.registers[addr].value)
 
 
 def read_mem(dut, addr):
-    return int(dut.bram.bram[addr].value)
+    return int(dut.dut.bram.bram[addr].value)
 
 
 @cocotb.test()
+@phased_test
 async def test_reset_vector_and_registers(dut):
     """After POR, PC sits at ResetVector and every register reads 0."""
     await start(dut)
-    assert int(dut.flow_ctl_if.pc.value) == RESET_VECTOR
+    assert int(dut.dut.flow_ctl_if.pc.value) == RESET_VECTOR
     for addr in range(NUM_REGS):
         assert read_reg(dut, addr) == 0, f"R{addr} nonzero after reset"
 
 
 @cocotb.test()
+@phased_test
 async def test_fetch_decode_writeback_round_trip(dut):
     """A single hand-assembled IMM_SET, fetched from real BRAM at the real
     PC and decoded by the real core_glue, lands in the real register file,
@@ -103,10 +138,11 @@ async def test_fetch_decode_writeback_round_trip(dut):
     await RisingEdge(dut.clk_i)
     await SETTLE
     assert read_reg(dut, 3) == 0x1234
-    assert int(dut.flow_ctl_if.pc.value) == RESET_VECTOR + 1
+    assert int(dut.dut.flow_ctl_if.pc.value) == RESET_VECTOR + 1
 
 
 @cocotb.test()
+@phased_test
 async def test_store_load_round_trip_through_d_bus(dut):
     """IMM_SET a value into R2, STORE_IMM it out to memory, LOAD_IMM it back
     into R5 -- proves the D-bus write path (core_glue -> real BRAM) and
@@ -128,10 +164,11 @@ async def test_store_load_round_trip_through_d_bus(dut):
     await SETTLE
     assert read_mem(dut, mem_addr) == value
     assert read_reg(dut, 5) == value
-    assert int(dut.flow_ctl_if.pc.value) == RESET_VECTOR + 3
+    assert int(dut.dut.flow_ctl_if.pc.value) == RESET_VECTOR + 3
 
 
 @cocotb.test()
+@phased_test
 async def test_branch_redirects_real_pc(dut):
     """Two IMM_SETs feed equal values into a flow_ctl EQUAL branch --
     proves a branch decision fed by real register values actually
@@ -149,4 +186,4 @@ async def test_branch_redirects_real_pc(dut):
     for _ in range(3):
         await RisingEdge(dut.clk_i)
     await SETTLE
-    assert int(dut.flow_ctl_if.pc.value) == target
+    assert int(dut.dut.flow_ctl_if.pc.value) == target
