@@ -11,4 +11,5 @@ machines/hydrogen/rtl/isa_pkg.sv
 machines/hydrogen/rtl/regfile.sv
 machines/hydrogen/rtl/regfile_read_if.sv
 machines/hydrogen/rtl/regfile_write_if.sv
+machines/hydrogen/rtl/uart.sv
 
