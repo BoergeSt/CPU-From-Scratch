@@ -82,7 +82,7 @@ module uart_phy_tx (
 
   logic [ 2:0] bit_counter;
   logic [15:0] count_to;
-  assign count_to = divisor_i << 4;
+  assign count_to = (16'(divisor_i) << 4) - 1;
 
   logic [15:0] supersample_counter;
 
@@ -193,9 +193,9 @@ module uart_phy_rx (
     parity_error_o = '0;
     frame_error_o  = '0;
 
-    if (state == UART_RX_STATE_PARITY && supersample_counter == divisor_i << 'h4)
+    if (state == UART_RX_STATE_PARITY && supersample_counter == (16'(divisor_i) << 'h4) - 'h1)
       parity_error_o = parity != rx_synced;
-    if (state == UART_RX_STATE_STOP && supersample_counter == divisor_i << 'h4)
+    if (state == UART_RX_STATE_STOP && supersample_counter == (16'(divisor_i) << 'h4) - 'h1)
       frame_error_o = !rx_synced;
   end
 
@@ -213,10 +213,10 @@ module uart_phy_rx (
         UART_RX_STATE_IDLE:
         if (!rx_synced) begin
           state <= UART_RX_STATE_START;
-          supersample_counter <= '0;
+          supersample_counter <= 'h1;  // first cycle is still in idle state
         end
         UART_RX_STATE_START:
-        if (supersample_counter == 16'(divisor_i) << 'h3) begin
+        if (supersample_counter == (16'(divisor_i) << 'h3) - 'h1) begin
           state <= rx_synced ? UART_RX_STATE_IDLE : UART_RX_STATE_BYTE_IN;
           read_byte <= '0;
           bit_count <= '0;
@@ -224,20 +224,20 @@ module uart_phy_rx (
           supersample_counter <= '0;
         end else supersample_counter <= supersample_counter + 1;
         UART_RX_STATE_BYTE_IN:
-        if (supersample_counter == 16'(divisor_i) << 'h4) begin
+        if (supersample_counter == (16'(divisor_i) << 'h4) - 'h1) begin
           bit_count <= bit_count + 1;
           read_byte <= read_byte | (8'(rx_synced) << bit_count);
           supersample_counter <= '0;
           if (bit_count == 7) state <= parity_en_i ? UART_RX_STATE_PARITY : UART_RX_STATE_STOP;
         end else supersample_counter <= supersample_counter + 1;
         UART_RX_STATE_PARITY:
-        if (supersample_counter == 16'(divisor_i) << 'h4) begin
+        if (supersample_counter == (16'(divisor_i) << 'h4) - 'h1) begin
           had_error <= parity_error_o;
           state <= UART_RX_STATE_STOP;
           supersample_counter <= '0;
         end else supersample_counter <= supersample_counter + 1;
         UART_RX_STATE_STOP:
-        if (supersample_counter == 16'(divisor_i) << 'h4) begin
+        if (supersample_counter == (16'(divisor_i) << 'h4) - 'h1) begin
           had_error <= had_error || frame_error_o;
           bit_count <= bit_count + 1;
           supersample_counter <= '0;
