@@ -80,13 +80,14 @@ module uart_phy_tx (
     output logic pull_data_o
 );
 
-  logic [ 2:0] bit_counter;
+  logic [2:0] bit_counter;
   logic [15:0] count_to;
-  assign count_to = (16'(divisor_i) << 4) - 1;
 
   logic [15:0] supersample_counter;
 
   logic [7:0] data_q;
+  logic state_last_tick;
+  logic reset_counter;
 
   uart_tx_state_e state;
 
@@ -102,48 +103,46 @@ module uart_phy_tx (
   end
 
   assign pull_data_o = state == UART_TX_STATE_START && supersample_counter == 'h0;
+  assign count_to = (16'(divisor_i) << 4) - 1;
+  assign state_last_tick = supersample_counter == count_to;
+  assign reset_counter = rst_i || state == UART_TX_STATE_IDLE;
+
+  always_ff @(posedge clk_i) begin
+    if (reset_counter || state_last_tick) supersample_counter <= 0;
+    else supersample_counter <= supersample_counter + 1;
+  end
 
   always_ff @(posedge clk_i) begin
     if (rst_i) begin
       bit_counter <= 'h0;
-      supersample_counter <= 'h0;
       state <= UART_TX_STATE_IDLE;
     end else begin
       unique case (state)
         UART_TX_STATE_IDLE:
         if (enable_i) begin
           state <= UART_TX_STATE_START;
-          supersample_counter <= 'h0;
         end
         UART_TX_STATE_START: begin
           if (supersample_counter == 0) data_q <= data_i;
-          if (supersample_counter == count_to) begin
+          if (state_last_tick) begin
             state <= UART_TX_STATE_BYTE_OUT;
-            supersample_counter <= 'h0;
             bit_counter <= 'h0;
-          end else supersample_counter <= supersample_counter + 'b1;
+          end
         end
         UART_TX_STATE_BYTE_OUT: begin
-          if (supersample_counter == count_to) begin
-            supersample_counter <= 'h0;
+          if (state_last_tick) begin
             bit_counter <= bit_counter + 'b1;  // overflow handles resetting this nicely
             if (bit_counter == 'h7)
               state <= parity_en_i ? UART_TX_STATE_PARITY : UART_TX_STATE_STOP;
-          end else supersample_counter <= supersample_counter + 'b1;
+          end
         end
-        UART_TX_STATE_PARITY: begin
-          if (supersample_counter == count_to) begin
-            supersample_counter <= 'h0;
-            state <= UART_TX_STATE_STOP;
-          end else supersample_counter <= supersample_counter + 'b1;
-        end
+        UART_TX_STATE_PARITY: if (state_last_tick) state <= UART_TX_STATE_STOP;
         UART_TX_STATE_STOP: begin
-          if (supersample_counter == count_to) begin
-            supersample_counter <= 'h0;
+          if (state_last_tick) begin
             if (stop_bit_i == UART_ONE_STOPBIT || bit_counter == 'h1)
               state <= enable_i ? UART_TX_STATE_START : UART_TX_STATE_IDLE;
             else bit_counter <= bit_counter + 'b1;
-          end else supersample_counter <= supersample_counter + 'b1;
+          end
         end
       endcase
     end
@@ -184,6 +183,9 @@ module uart_phy_rx (
 
   logic parity;
   logic had_parity_error;
+  logic reset_counter;
+  logic state_last_tick;
+  logic state_midpoint_tick;
 
   assign push_data_o = state == UART_RX_STATE_PUSH && !had_parity_error;
   assign parity = parity_type_i ? ~^read_byte : ^read_byte;
@@ -193,10 +195,8 @@ module uart_phy_rx (
     parity_error_o = '0;
     frame_error_o  = '0;
 
-    if (state == UART_RX_STATE_PARITY && supersample_counter == (16'(divisor_i) << 'h4) - 'h1)
-      parity_error_o = parity != rx_synced;
-    if (state == UART_RX_STATE_STOP && supersample_counter == (16'(divisor_i) << 'h4) - 'h1)
-      frame_error_o = !rx_synced;
+    if (state == UART_RX_STATE_PARITY && state_midpoint_tick) parity_error_o = parity != rx_synced;
+    if (state == UART_RX_STATE_STOP && state_midpoint_tick) frame_error_o = !rx_synced;
   end
 
   always_ff @(posedge clk_i) begin
@@ -205,46 +205,47 @@ module uart_phy_rx (
     rx_synced <= rst_i ? '0 : rx_tmp;
   end
 
+  assign state_last_tick = (16'(divisor_i) << 'h4) - 'h1 == supersample_counter;
+  assign state_midpoint_tick = supersample_counter == 16'(divisor_i) << 'h3;
+  assign reset_counter = rst_i || !enable_i || state == UART_RX_STATE_IDLE;
+
+  always_ff @(posedge clk_i) begin
+    if (reset_counter || state_last_tick)
+      // We miss the first start bit due to the idle->start transition delay
+      supersample_counter <= state == UART_RX_STATE_IDLE ? 'h1 : 'h0;
+    else supersample_counter <= supersample_counter + 'h1;
+  end
+
+
   always_ff @(posedge clk_i) begin
     if (rst_i || !enable_i) state <= UART_RX_STATE_ERROR;
     else begin
       unique case (state)
         UART_RX_STATE_ERROR: if (rx_synced) state <= UART_RX_STATE_IDLE;
-        UART_RX_STATE_IDLE:
-        if (!rx_synced) begin
-          state <= UART_RX_STATE_START;
-          supersample_counter <= 'h1;  // first cycle is still in idle state
-        end
-        UART_RX_STATE_START:
-        if (supersample_counter == (16'(divisor_i) << 'h3) - 'h1) begin
-          state <= rx_synced ? UART_RX_STATE_IDLE : UART_RX_STATE_BYTE_IN;
+        UART_RX_STATE_IDLE:  if (!rx_synced) state <= UART_RX_STATE_START;
+        UART_RX_STATE_START: begin
           read_byte <= '0;
           bit_count <= '0;
           had_parity_error <= '0;
-          supersample_counter <= '0;
-        end else supersample_counter <= supersample_counter + 1;
-        UART_RX_STATE_BYTE_IN:
-        if (supersample_counter == (16'(divisor_i) << 'h4) - 'h1) begin
-          bit_count <= bit_count + 1;
-          read_byte <= read_byte | (8'(rx_synced) << bit_count);
-          supersample_counter <= '0;
-          if (bit_count == 7) state <= parity_en_i ? UART_RX_STATE_PARITY : UART_RX_STATE_STOP;
-        end else supersample_counter <= supersample_counter + 1;
-        UART_RX_STATE_PARITY:
-        if (supersample_counter == (16'(divisor_i) << 'h4) - 'h1) begin
-          had_parity_error <= parity_error_o;
-          state <= UART_RX_STATE_STOP;
-          supersample_counter <= '0;
-        end else supersample_counter <= supersample_counter + 1;
-        UART_RX_STATE_STOP:
-        if (supersample_counter == (16'(divisor_i) << 'h4) - 'h1) begin
-          bit_count <= bit_count + 1;
-          supersample_counter <= '0;
-          if (frame_error_o) state <= UART_RX_STATE_ERROR;
-          else if (stop_bit_i == UART_ONE_STOPBIT || bit_count == 'h1) begin
-            state <= UART_RX_STATE_PUSH;
+          if (state_midpoint_tick && rx_synced) state <= UART_RX_STATE_IDLE;
+          if (state_last_tick) state <= UART_RX_STATE_BYTE_IN;
+        end
+        UART_RX_STATE_BYTE_IN: begin
+          if (state_midpoint_tick) read_byte <= read_byte | (8'(rx_synced) << bit_count);
+          if (state_last_tick) begin
+            bit_count <= bit_count + 1;
+            if (bit_count == 7) state <= parity_en_i ? UART_RX_STATE_PARITY : UART_RX_STATE_STOP;
           end
-        end else supersample_counter <= supersample_counter + 1;
+        end
+        UART_RX_STATE_PARITY: begin
+          if (state_midpoint_tick) had_parity_error <= parity_error_o;
+          if (state_last_tick) state <= UART_RX_STATE_STOP;
+        end
+        UART_RX_STATE_STOP: begin
+          if (state_midpoint_tick && (stop_bit_i == UART_ONE_STOPBIT || bit_count == 'h1))
+            state <= frame_error_o ? UART_RX_STATE_ERROR : UART_RX_STATE_PUSH;
+          if (state_last_tick) bit_count <= bit_count + 1;
+        end
         UART_RX_STATE_PUSH:  state <= UART_RX_STATE_IDLE;
       endcase
     end
