@@ -183,9 +183,9 @@ module uart_phy_rx (
   logic [7:0] read_byte;
 
   logic parity;
-  logic had_error;
+  logic had_parity_error;
 
-  assign push_data_o = state == UART_RX_STATE_PUSH && !had_error;
+  assign push_data_o = state == UART_RX_STATE_PUSH && !had_parity_error;
   assign parity = parity_type_i ? ~^read_byte : ^read_byte;
   assign data_o = read_byte;
 
@@ -220,7 +220,7 @@ module uart_phy_rx (
           state <= rx_synced ? UART_RX_STATE_IDLE : UART_RX_STATE_BYTE_IN;
           read_byte <= '0;
           bit_count <= '0;
-          had_error <= '0;
+          had_parity_error <= '0;
           supersample_counter <= '0;
         end else supersample_counter <= supersample_counter + 1;
         UART_RX_STATE_BYTE_IN:
@@ -232,13 +232,12 @@ module uart_phy_rx (
         end else supersample_counter <= supersample_counter + 1;
         UART_RX_STATE_PARITY:
         if (supersample_counter == (16'(divisor_i) << 'h4) - 'h1) begin
-          had_error <= parity_error_o;
+          had_parity_error <= parity_error_o;
           state <= UART_RX_STATE_STOP;
           supersample_counter <= '0;
         end else supersample_counter <= supersample_counter + 1;
         UART_RX_STATE_STOP:
         if (supersample_counter == (16'(divisor_i) << 'h4) - 'h1) begin
-          had_error <= had_error || frame_error_o;
           bit_count <= bit_count + 1;
           supersample_counter <= '0;
           if (frame_error_o) state <= UART_RX_STATE_ERROR;
