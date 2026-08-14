@@ -3,9 +3,9 @@
 Machine generation: **hydrogen** (H, atomic number 1 — first machine
 generation, per the codename convention in `CLAUDE.md`).
 
-Status: **designed, not yet implemented** — module boundary, ports, and v1
-address map settled in design discussion; no RTL (`d_bus_interconnect.sv`)
-exists yet.
+Status: **implemented** — `machines/hydrogen/rtl/d_bus_interconnect.sv`,
+verified by `machines/hydrogen/rtl/tb/test_d_bus_interconnect.py`
+(`just sim :hydrogen:d_bus_interconnect`).
 
 ## Overview
 
