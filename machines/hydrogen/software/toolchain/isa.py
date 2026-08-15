@@ -130,7 +130,9 @@ def encode_imm_set(dest, imm, line_number, labels):
     if dest not in registers:
         logger.error(f"Invalid destination register for imm_set: {dest}")
         return None
-    value = parse_int(imm)
+    value = labels.get(imm)
+    if value is None:
+        value = parse_int(imm)
     if value is None:
         logger.error(f"Invalid immediate value for imm_set: {imm}")
         return None
