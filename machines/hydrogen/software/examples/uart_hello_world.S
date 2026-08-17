@@ -1,5 +1,5 @@
-#include "uart.S"
-#include "time.S"
+#include "lib/uart.S"
+#include "lib/time.S"
 
 .org // constants
 WaitTime: .word CLOCK_SPEED // == 1 second

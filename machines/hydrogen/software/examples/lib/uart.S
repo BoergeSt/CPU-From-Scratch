@@ -1,6 +1,6 @@
 #pragma once
 
-#include "hydrogen.h"
+#include "../include/hydrogen.h"
 
 .org
 UartSetup:

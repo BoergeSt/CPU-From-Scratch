@@ -1,4 +1,5 @@
-
+#pragma once
+#include "../include/calling_convention.h"
 
 .org
 WaitCycles:

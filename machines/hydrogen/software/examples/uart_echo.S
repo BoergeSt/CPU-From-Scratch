@@ -1,6 +1,6 @@
 
-#include "uart.S"
-#include "time.S"
+#include "lib/uart.S"
+#include "lib/time.S"
 
 .org // constants
 Del_Sequence: .asciz "\b \b"
