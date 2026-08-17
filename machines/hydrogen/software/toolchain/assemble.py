@@ -48,6 +48,12 @@ def read_source(path):
         return f.read()
 
 
+# Placeholder base for addresses assigned during a floating `.org` region
+# (see tokenize()) -- comfortably above any real Hydrogen address so real and
+# placeholder addresses can never collide before the final remap.
+FLOATING_BASE = 1 << 30
+
+
 @dataclass
 class Line:
     address: int
@@ -91,9 +97,17 @@ def consume_labels(line, address, labels):
 def tokenize(source):
     """Splits source into (Line(address, text[, data]), labels).
 
-    `.org` moves the address cursor; any number of leading `label:` tokens on
-    a line (alone, or ahead of another label/directive/instruction on the
-    same line) resolve to the address of whatever follows them; every
+    `.org <address>` moves the address cursor to an anchored address; a bare
+    `.org` (no operand) instead switches into *floating* placement -- lines
+    that follow aren't assigned a real address yet, only a placeholder one
+    that preserves their relative order, and get remapped at the end of this
+    function to sit, in encounter order, immediately after the highest
+    address any anchored region in the file used. This lets library code
+    (`.org` with no operand, then its definitions) live anywhere in the
+    source -- e.g. `#include`d above `main` -- without colliding with
+    anchored placement elsewhere in the file. Any number of leading `label:`
+    tokens on a line (alone, or ahead of another label/directive/instruction
+    on the same line) resolve to the address of whatever follows them; every
     remaining non-blank line becomes a `Line` at the current address. A
     `.ascii`/`.asciz` line carries its decoded bytes in `Line.data` and
     advances the address by however many words that packs into; every other
@@ -103,17 +117,24 @@ def tokenize(source):
     lines = []
     labels = {}
     address = 0x10
+    floating_address = FLOATING_BASE
+    floating = False
+    max_anchored_end = 0x10 - 1
     for raw_line in source.splitlines():
         line = raw_line.strip()
         if not line:
             continue
-        line = consume_labels(line, address, labels)
+        cursor = floating_address if floating else address
+        line = consume_labels(line, cursor, labels)
         if line is None:
             return None, None
         if not line:
             continue
         if line.lower().startswith(".org"):
             split_line = line.split()
+            if len(split_line) == 1:
+                floating = True
+                continue
             if len(split_line) != 2:
                 logger.error("Invalid .org directive: %s", line)
                 return None, None
@@ -122,6 +143,7 @@ def tokenize(source):
                 logger.error("Invalid .org offset: %s", line)
                 return None, None
             address = offset
+            floating = False
             continue
         directive = line.split(None, 1)[0].lower()
         if directive in (".ascii", ".asciz"):
@@ -133,11 +155,24 @@ def tokenize(source):
                 return None, None
             if directive == ".asciz":
                 data += b"\x00"
-            lines.append(Line(address=address, text=line, data=data))
-            address += (len(data) + 3) // 4
-            continue
-        lines.append(Line(address=address, text=line))
-        address += 1
+            word_count = (len(data) + 3) // 4
+        else:
+            data = None
+            word_count = 1
+        lines.append(Line(address=cursor, text=line, data=data))
+        if floating:
+            floating_address += word_count
+        else:
+            address += word_count
+            max_anchored_end = max(max_anchored_end, address - 1)
+
+    floating_offset = max_anchored_end + 1 - FLOATING_BASE
+    for line in lines:
+        if line.address >= FLOATING_BASE:
+            line.address += floating_offset
+    for label, addr in labels.items():
+        if addr >= FLOATING_BASE:
+            labels[label] = addr + floating_offset
     return lines, labels
 
 

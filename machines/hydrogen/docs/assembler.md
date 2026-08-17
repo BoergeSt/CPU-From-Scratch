@@ -156,6 +156,34 @@ main:
 
 `.word <value>` emits one literal 32-bit word at the current address.
 
+A bare `.org` (no address) switches into **floating placement**: code that
+follows isn't pinned to a fixed address — it's placed, in encounter order,
+immediately after the highest address any anchored (`.org <address>`)
+region in the file used, once the whole file has been scanned. This is
+meant for library code that shouldn't have to know or care where it ends
+up in memory — write it anywhere in the source (e.g. `#include`d above
+`main`) with a bare `.org` in front, and it's placed after everything
+anchored, regardless of where it appears textually:
+
+```
+.org
+    ; library functions -- position doesn't matter, textually or in memory
+my_func:
+    ...
+
+.org 0x0
+    ; exception handler
+.org 0x10
+main:
+    always [my_func]   ; forward reference into floating code -- fine
+```
+
+`.org <address>` switches back to anchored placement at that address, so
+floating and anchored regions can also interleave more than once in the
+same file — every floating region shares one placement, in the order it was
+written, regardless of how many times the source switches back to anchored
+placement in between.
+
 ## Strings
 
 `.ascii "<text>"` and `.asciz "<text>"` emit `<text>` as packed bytes
@@ -180,8 +208,9 @@ Supported escapes inside the string: `\n` `\t` `\r` `\0` `\a` `\b` `\f`
 
 ## Not yet supported
 
-- Automatic `.data`/`.bss`-style section placement, and multi-file linking
-  in general — place data manually with `.org` + labels until a linker
-  exists.
+- True multi-file linking — every file is still one `#include`d translation
+  unit assembled as a whole (see Usage above); floating `.org` (above) only
+  solves *placement within* that unit, not assembling/linking separate
+  object files.
 - Sub-word (byte/halfword) literals outside of `.ascii`/`.asciz` — Hydrogen
   memory is word-addressed with no sub-word load/store yet (`isa.md`).
