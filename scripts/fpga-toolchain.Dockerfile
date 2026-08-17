@@ -14,6 +14,7 @@ ARG OSS_CAD_SUITE_DATE=20260629
 RUN apt-get update && apt-get install -y --no-install-recommends \
         build-essential \
         ca-certificates \
+        clang \
         curl \
         fontconfig \
         fonts-dejavu-core \
