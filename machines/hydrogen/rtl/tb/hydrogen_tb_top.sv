@@ -1,14 +1,17 @@
 // Cocotb top-level wrapper: hydrogen has no interface ports of its own
-// (only clk_i/rst_i, already plain -- see hydrogen.core's tb_cocotb
-// fileset), so unlike every other module's tb_top.sv this isn't needed
-// to flatten anything. It exists purely to host the debug-only test-phase
-// signal below; every hierarchical reference in test_hydrogen.py (e.g.
-// dut.regfile.registers, dut.flow_ctl_if.pc) now goes one level deeper
-// through .dut. accordingly. Test infrastructure only, not part of the
-// synthesizable design.
+// (only plain clk_i/rst_i/uart0_rx_i/uart0_tx_o -- see hydrogen.core's
+// tb_cocotb fileset), so unlike every other module's tb_top.sv this isn't
+// needed to flatten anything. It exists purely to host the debug-only
+// test-phase signal below and to pass the plain ports straight through
+// (same reasoning as clk_i/rst_i already got); every hierarchical
+// reference in test_hydrogen.py (e.g. dut.regfile.registers,
+// dut.flow_ctl_if.pc) now goes one level deeper through .dut. accordingly.
+// Test infrastructure only, not part of the synthesizable design.
 module hydrogen_tb_top (
-    input logic clk_i,
-    input logic rst_i
+    input  logic clk_i,
+    input  logic rst_i,
+    input  logic uart0_rx_i,
+    output logic uart0_tx_o
 );
 
   // Debug-only: current cocotb test phase, decoded by name in the
@@ -31,8 +34,10 @@ module hydrogen_tb_top (
   test_phase_e dbg_test_phase = PHASE_IDLE;
 
   hydrogen dut (
-      .clk_i(clk_i),
-      .rst_i(rst_i)
+      .clk_i     (clk_i),
+      .rst_i     (rst_i),
+      .uart0_rx_i(uart0_rx_i),
+      .uart0_tx_o(uart0_tx_o)
   );
 
 endmodule

@@ -1,6 +1,6 @@
 CAPI=2:
 name: :hydrogen:hydrogen
-description: Hydrogen machine top-level -- wires core_glue, alu, alu_status, flow_ctl, regfile, and bram together (see machines/hydrogen/docs/hydrogen.md)
+description: Hydrogen machine top-level -- wires core_glue, alu, alu_status, flow_ctl, regfile, bram, d_bus_interconnect, and uart together (see machines/hydrogen/docs/hydrogen.md)
 
 filesets:
   rtl:
@@ -12,6 +12,8 @@ filesets:
       - ":hydrogen:bram"
       - ":hydrogen:regfile"
       - ":hydrogen:core_glue"
+      - ":hydrogen:uart"
+      - ":hydrogen:d_bus_interconnect"
     files:
       - hydrogen.sv: {file_type: systemVerilogSource}
       # See the waiver file itself for why this is only needed once
