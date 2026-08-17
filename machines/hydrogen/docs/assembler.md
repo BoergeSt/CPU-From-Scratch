@@ -243,6 +243,50 @@ mask the packed word yourself.
 Supported escapes inside the string: `\n` `\t` `\r` `\0` `\a` `\b` `\f`
 `\v` `\\` `\"` `\'`, and `\xHH` for an arbitrary byte value (e.g. `\xa0`).
 
+## Calling convention
+
+Hydrogen's core has no hardware stack or call/return support (`isa.md`) —
+calls, returns, and the stack are a pure software convention built from
+ordinary instructions, provided as C preprocessor macros in
+`software/examples/calling_convention.h` rather than assembler syntax.
+
+### Register roles
+
+| Register | Role |
+|----------|------|
+| `R7` | Return address |
+| `R6` | Stack pointer |
+| `R2`–`R5` | Callee-saved — save/restore before use, if used |
+| `R0`, `R1` | Caller-saved — arguments and return values, free to clobber |
+
+No frame-pointer register is reserved. A fixed offset from `R6` is only
+valid at a point in a function's body where the net push/pop count since
+entry is statically known; a function whose own body pushes/pops a
+variable amount before referencing a local (a loop, a conditional push) is
+responsible for tracking its own base pointer, if it needs one.
+
+### Stack
+
+Full descending: grows downward, `R6` points at the last pushed word.
+`PUSH` decrements `R6` before storing, so `R6` must be initialized to one
+past the top of usable memory (`0x1000` for the default 4096-word BRAM,
+`bram.md`) before the first `PUSH`, not to the top word itself.
+
+### Macros (`calling_convention.h`)
+
+| Macro | Behavior |
+|-------|----------|
+| `PUSH(reg)` | Push `reg` onto the stack |
+| `POP(reg)` | Pop the top of the stack into `reg` |
+| `CALL(func)` | Set `R7` to a return address, jump to `func` |
+| `RETURN` | Jump to the address in `R7` |
+
+`CALL` generates a fresh, unique return-address label per invocation (via
+`__COUNTER__`), so nested/repeated `CALL`s in the same file don't collide.
+Saving `R7` around a nested `CALL` (so it survives the inner call) is the
+calling function's own responsibility, same as any other callee-saved
+register it uses.
+
 ## Not yet supported
 
 - True multi-file linking — every file is still one `#include`d translation
