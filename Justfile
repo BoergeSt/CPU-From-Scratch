@@ -5,15 +5,17 @@ toolchain-build:
 
 # Assemble a Hydrogen source file into a raw binary image (assembler.md),
 # e.g. `just assemble machines/hydrogen/software/examples/factorial.S`.
-# Output is the input path with its extension replaced by .bin. Runs on
-# the host (gcc + python3), not the container -- the assembler is a plain
-# host-side tool, not part of the Verilator/Yosys toolchain.
+# Output is the input path with its extension replaced by .bin, alongside a
+# .map symbol file (label -> word address). Runs on the host (gcc +
+# python3), not the container -- the assembler is a plain host-side tool,
+# not part of the Verilator/Yosys toolchain.
 assemble file:
     #!/usr/bin/env sh
     set -eu
     out="{{without_extension(file)}}.bin"
-    gcc -E -P -x c "{{file}}" | python3 machines/hydrogen/software/toolchain/assemble.py - -o "$out"
-    echo "assembled: $out"
+    map="{{without_extension(file)}}.map"
+    gcc -E -P -x c "{{file}}" | python3 machines/hydrogen/software/toolchain/assemble.py - -o "$out" -m "$map"
+    echo "assembled: $out (map: $map)"
 
 # Run a FuseSoC target against a core -- internal helper, use `lint`/`sim` below.
 # Two --cores-root flags (machines/, common/): FuseSoC's --cores-root is an

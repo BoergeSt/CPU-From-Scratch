@@ -26,6 +26,11 @@ def parse_args(argv=None):
         "-o", "--output", required=True, help="path to write the assembled binary image to"
     )
     parser.add_argument(
+        "-m",
+        "--map",
+        help="path to write a symbol map file to (label -> word address, sorted by address)",
+    )
+    parser.add_argument(
         "-v",
         "--verbose",
         action="count",
@@ -278,18 +283,29 @@ def pack_image(words):
     return image
 
 
+def format_map_file(labels):
+    """Renders a symbol map as text, one `address  label` line per symbol,
+    sorted by address then name.
+    """
+    lines = [
+        f"0x{address:08X}  {label}"
+        for label, address in sorted(labels.items(), key=lambda item: (item[1], item[0]))
+    ]
+    return "".join(f"{line}\n" for line in lines)
+
+
 def lex_source(source):
     lines, labels = tokenize(source)
     if lines is None:
-        return None
+        return None, None
     logger.debug("Tokenized into %d lines and %d labels", len(lines), len(labels))
     logger.debug("Labels: %s", labels)
 
     words = encode_lines(lines, labels)
     if words is None:
-        return None
+        return None, None
 
-    return pack_image(words)
+    return pack_image(words), labels
 
 
 def main(argv=None):
@@ -305,15 +321,21 @@ def main(argv=None):
 
     logger.info("read %d bytes", len(source))
 
-    result = lex_source(source)
-    if result is None:
+    image, labels = lex_source(source)
+    if image is None:
         return 1
 
     if args.output == "-":
-        sys.stdout.buffer.write(result)
+        sys.stdout.buffer.write(image)
     else:
         with open(args.output, "wb") as f:
-            f.write(result)
+            f.write(image)
+
+    if args.map:
+        with open(args.map, "w") as f:
+            f.write(format_map_file(labels))
+        logger.info("wrote %d symbols to %s", len(labels), args.map)
+
     return 0
 
 
