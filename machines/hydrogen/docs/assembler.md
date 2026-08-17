@@ -46,6 +46,26 @@ Standard C preprocessor directives apply directly:
 load R1, [UART_BASE]
 ```
 
+## Statement separator
+
+`;` is equivalent to a newline anywhere outside a `"..."` string literal --
+it splits one physical line into multiple statements, each parsed exactly
+as if it were on its own line (its own label(s), its own instruction or
+directive):
+
+```
+imm_set R1, 1 ; imm_set R2, 2
+```
+
+This exists for macros: the C preprocessor always expands a multi-line
+`#define` onto a single output line, regardless of how the macro body
+itself is split across lines with `\` continuations, so a macro emitting
+more than one instruction needs `;` to separate them once expanded. An
+empty statement (`;;`, or a label with nothing after the final `;`) is
+legal and simply contributes nothing, same as a blank line. A `;` inside a
+`.ascii`/`.asciz` string is left untouched -- there it's a character being
+packed into the string's bytes, not a separator.
+
 ## Numbers
 
 | Form | Example | Meaning |

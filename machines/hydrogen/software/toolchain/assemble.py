@@ -94,6 +94,37 @@ def consume_labels(line, address, labels):
     return line
 
 
+def split_statements(source):
+    """Replaces every ';' outside a "..." string literal with a newline, so
+    ';' works as a statement separator anywhere a real newline would --
+    chiefly for macros (`#define`) that expand multiple instructions onto
+    one output line, which the C preprocessor always does regardless of how
+    the macro body's own definition is split across lines. A ';' inside a
+    `.ascii`/`.asciz` literal is left untouched, since there it's just a
+    character being packed into the string's bytes, not a separator.
+    """
+    result = []
+    in_string = False
+    escaped = False
+    for ch in source:
+        if in_string:
+            result.append(ch)
+            if escaped:
+                escaped = False
+            elif ch == "\\":
+                escaped = True
+            elif ch == '"':
+                in_string = False
+        elif ch == '"':
+            in_string = True
+            result.append(ch)
+        elif ch == ";":
+            result.append("\n")
+        else:
+            result.append(ch)
+    return "".join(result)
+
+
 def tokenize(source):
     """Splits source into (Line(address, text[, data]), labels).
 
@@ -120,7 +151,7 @@ def tokenize(source):
     floating_address = FLOATING_BASE
     floating = False
     max_anchored_end = 0x10 - 1
-    for raw_line in source.splitlines():
+    for raw_line in split_statements(source).splitlines():
         line = raw_line.strip()
         if not line:
             continue
