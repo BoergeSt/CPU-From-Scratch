@@ -172,6 +172,34 @@ def parse_string_literal(text):
     return None, None
 
 
+def parse_char_literal(text):
+    """Parses a single-quoted character literal (e.g. `'a'`, `'\\n'`,
+    `'\\x41'`), using the same escapes as `parse_string_literal`. Returns the
+    character's byte value, or `None` if `text` isn't a valid, fully-consumed
+    char literal. An unescaped `'` or `\\` as the sole body character is
+    rejected as ambiguous -- both must be written via their escape.
+    """
+    if len(text) < 3 or text[0] != "'" or text[-1] != "'":
+        return None
+    body = text[1:-1]
+    if len(body) == 1:
+        c = body
+        if c in ("'", "\\") or ord(c) > 0xFF:
+            return None
+        return ord(c)
+    if not body or body[0] != "\\":
+        return None
+    esc = body[1:]
+    if len(esc) == 1:
+        return _STRING_ESCAPES.get(esc)
+    if len(esc) == 3 and esc[0] == "x":
+        hex_digits = esc[1:]
+        if any(ch not in "0123456789abcdefABCDEF" for ch in hex_digits):
+            return None
+        return int(hex_digits, 16)
+    return None
+
+
 def pack_bytes_little_endian(data):
     """Packs `data` into 32-bit words, 4 bytes per word, little-endian (a
     word's first byte sits in its least-significant byte position). The
@@ -201,12 +229,18 @@ def encode_imm_set(dest, imm, line_number, labels):
     if dest not in registers:
         logger.error(f"Invalid destination register for imm_set: {dest}")
         return None
-    value = labels.get(imm)
-    if value is None:
-        value = parse_int(imm)
-    if value is None:
-        logger.error(f"Invalid immediate value for imm_set: {imm}")
-        return None
+    if imm.startswith("'"):
+        value = parse_char_literal(imm)
+        if value is None:
+            logger.error(f"Invalid character literal for imm_set: {imm}")
+            return None
+    else:
+        value = labels.get(imm)
+        if value is None:
+            value = parse_int(imm)
+        if value is None:
+            logger.error(f"Invalid immediate value for imm_set: {imm}")
+            return None
     if value < 0 or value > 0x1FFFFFF:
         logger.error(f"Immediate value out of range for imm_set: {imm}")
         return None

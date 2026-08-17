@@ -99,35 +99,63 @@ def consume_labels(line, address, labels):
     return line
 
 
-def split_statements(source):
-    """Replaces every ';' outside a "..." string literal with a newline, so
-    ';' works as a statement separator anywhere a real newline would --
-    chiefly for macros (`#define`) that expand multiple instructions onto
-    one output line, which the C preprocessor always does regardless of how
-    the macro body's own definition is split across lines. A ';' inside a
-    `.ascii`/`.asciz` literal is left untouched, since there it's just a
-    character being packed into the string's bytes, not a separator.
+def _scan_quoted(text):
+    """Yields `(char, quoted)` for each character in `text`, where `quoted`
+    is True while inside a "..." or '...' literal (either quote style,
+    tracking `\\`-escapes so an escaped quote doesn't end the literal early).
+    Shared by `split_statements` and `split_args` so both treat `.ascii`/
+    `.asciz` string literals and `imm_set` character literals as opaque the
+    same way.
     """
-    result = []
-    in_string = False
+    quote = None
     escaped = False
-    for ch in source:
-        if in_string:
-            result.append(ch)
+    for ch in text:
+        if quote:
+            yield ch, True
             if escaped:
                 escaped = False
             elif ch == "\\":
                 escaped = True
-            elif ch == '"':
-                in_string = False
-        elif ch == '"':
-            in_string = True
-            result.append(ch)
-        elif ch == ";":
-            result.append("\n")
+            elif ch == quote:
+                quote = None
+        elif ch in ("'", '"'):
+            quote = ch
+            yield ch, True
         else:
-            result.append(ch)
-    return "".join(result)
+            yield ch, False
+
+
+def split_statements(source):
+    """Replaces every ';' outside a quoted literal with a newline, so ';'
+    works as a statement separator anywhere a real newline would -- chiefly
+    for macros (`#define`) that expand multiple instructions onto one output
+    line, which the C preprocessor always does regardless of how the macro
+    body's own definition is split across lines. A ';' inside a
+    `.ascii`/`.asciz` string or an `imm_set` character literal is left
+    untouched, since there it's just a character being packed/encoded, not a
+    separator.
+    """
+    return "".join(
+        "\n" if ch == ";" and not quoted else ch for ch, quoted in _scan_quoted(source)
+    )
+
+
+def split_args(args_str):
+    """Splits an operand string on top-level ',' -- like `str.split(",")`,
+    but a ',' inside a quoted literal (e.g. the `,` in a `','` character
+    literal) is left untouched, since there it's operand content, not a
+    separator.
+    """
+    args = []
+    current = []
+    for ch, quoted in _scan_quoted(args_str):
+        if ch == "," and not quoted:
+            args.append("".join(current))
+            current = []
+        else:
+            current.append(ch)
+    args.append("".join(current))
+    return args
 
 
 def tokenize(source):
@@ -231,7 +259,7 @@ def encode_line(line, labels):
     parts = text.split(None, 1)
     opcode = parts[0].lower()
     args_str = parts[1].strip() if len(parts) > 1 else ""
-    args = [arg.strip() for arg in args_str.split(",")] if args_str else []
+    args = [arg.strip() for arg in split_args(args_str)] if args_str else []
     if opcode not in isa.INSTRUCTIONS:
         logger.error("Unknown opcode: %s", opcode)
         return None

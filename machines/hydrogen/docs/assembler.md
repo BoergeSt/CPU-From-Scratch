@@ -48,10 +48,10 @@ load R1, [UART_BASE]
 
 ## Statement separator
 
-`;` is equivalent to a newline anywhere outside a `"..."` string literal --
-it splits one physical line into multiple statements, each parsed exactly
-as if it were on its own line (its own label(s), its own instruction or
-directive):
+`;` is equivalent to a newline anywhere outside a `"..."` string or `'...'`
+character literal -- it splits one physical line into multiple statements,
+each parsed exactly as if it were on its own line (its own label(s), its own
+instruction or directive):
 
 ```
 imm_set R1, 1 ; imm_set R2, 2
@@ -63,8 +63,10 @@ itself is split across lines with `\` continuations, so a macro emitting
 more than one instruction needs `;` to separate them once expanded. An
 empty statement (`;;`, or a label with nothing after the final `;`) is
 legal and simply contributes nothing, same as a blank line. A `;` inside a
-`.ascii`/`.asciz` string is left untouched -- there it's a character being
-packed into the string's bytes, not a separator.
+`.ascii`/`.asciz` string or an `imm_set` character literal (e.g. `';'`) is
+left untouched -- there it's a character being packed/encoded, not a
+separator. The same holds for `,` inside a character literal (e.g. `','`)
+against the comma that separates an instruction's operands.
 
 ## Numbers
 
@@ -77,6 +79,20 @@ packed into the string's bytes, not a separator.
 A bare number is always an immediate/address literal — register operands
 are always one of the names below, so no prefix (`#`, `$`, ...) is needed to
 disambiguate.
+
+## Character literals
+
+`'<char>'` is a single ASCII character, usable anywhere a plain number is
+currently accepted (`imm_set` only, for now):
+
+```
+imm_set R2, '\n'
+imm_set R3, 'A'
+```
+
+Same escapes as `.ascii`/`.asciz` string literals (see Strings below): `\n`
+`\t` `\r` `\0` `\a` `\b` `\f` `\v` `\\` `\"` `\'`, and `\xHH` for an
+arbitrary byte value.
 
 ## Registers
 
@@ -100,6 +116,7 @@ not  R1, R2         ; unary -- no third operand
 
 ```
 imm_set R1, 0x1234
+imm_set R2, '\n'   ; character literal -- see above
 ```
 
 ### Memory access
