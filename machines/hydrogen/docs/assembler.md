@@ -156,10 +156,32 @@ main:
 
 `.word <value>` emits one literal 32-bit word at the current address.
 
+## Strings
+
+`.ascii "<text>"` and `.asciz "<text>"` emit `<text>` as packed bytes
+starting at the current address — `.asciz` additionally appends a
+terminating NUL byte, `.ascii` does not. Both pack 4 bytes per word,
+little-endian (the string's first byte sits in the word's
+least-significant byte), and zero-pad the final word's high end if the
+byte count isn't a multiple of 4:
+
+```
+msg: .asciz "Hi\n"   ; word 0: 0x000A6948 ('H' 'i' '\n' <NUL>)
+```
+
+A label placed right after a string directive resolves to the word
+following its packed bytes, same as any other directive. Since memory has
+no sub-word load (see below), reading individual characters back out of a
+word — e.g. to print each one to the UART — is software's job: shift and
+mask the packed word yourself.
+
+Supported escapes inside the string: `\n` `\t` `\r` `\0` `\a` `\b` `\f`
+`\v` `\\` `\"` `\'`, and `\xHH` for an arbitrary byte value (e.g. `\xa0`).
+
 ## Not yet supported
 
 - Automatic `.data`/`.bss`-style section placement, and multi-file linking
   in general — place data manually with `.org` + labels until a linker
   exists.
-- Sub-word (byte/halfword) literals — Hydrogen memory is word-addressed
-  with no sub-word load/store yet (`isa.md`).
+- Sub-word (byte/halfword) literals outside of `.ascii`/`.asciz` — Hydrogen
+  memory is word-addressed with no sub-word load/store yet (`isa.md`).

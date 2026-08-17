@@ -52,6 +52,10 @@ def read_source(path):
 class Line:
     address: int
     text: str
+    # Decoded byte payload for a `.ascii`/`.asciz` line, spanning
+    # ceil(len(data) / 4) words from `address`. None for every other line
+    # (`.word`, an instruction), which occupies exactly one word.
+    data: bytes | None = None
 
 
 def consume_labels(line, address, labels):
@@ -85,13 +89,15 @@ def consume_labels(line, address, labels):
 
 
 def tokenize(source):
-    """Splits source into (Line(address, text), labels).
+    """Splits source into (Line(address, text[, data]), labels).
 
     `.org` moves the address cursor; any number of leading `label:` tokens on
     a line (alone, or ahead of another label/directive/instruction on the
     same line) resolve to the address of whatever follows them; every
-    remaining non-blank line becomes a `Line` at the current address, which
-    then advances by one word. Returns (None, None) on a malformed
+    remaining non-blank line becomes a `Line` at the current address. A
+    `.ascii`/`.asciz` line carries its decoded bytes in `Line.data` and
+    advances the address by however many words that packs into; every other
+    line advances by exactly one word. Returns (None, None) on a malformed
     directive/label (error already logged).
     """
     lines = []
@@ -116,6 +122,19 @@ def tokenize(source):
                 logger.error("Invalid .org offset: %s", line)
                 return None, None
             address = offset
+            continue
+        directive = line.split(None, 1)[0].lower()
+        if directive in (".ascii", ".asciz"):
+            split_line = line.split(None, 1)
+            operand = split_line[1].strip() if len(split_line) == 2 else ""
+            data, remainder = isa.parse_string_literal(operand)
+            if data is None or remainder:
+                logger.error("Invalid %s directive: %s", directive, line)
+                return None, None
+            if directive == ".asciz":
+                data += b"\x00"
+            lines.append(Line(address=address, text=line, data=data))
+            address += (len(data) + 3) // 4
             continue
         lines.append(Line(address=address, text=line))
         address += 1
@@ -153,26 +172,33 @@ def encode_line(line, labels):
 
 
 def encode_lines(lines, labels):
-    """Encodes every Line into its word, keyed by address.
+    """Encodes every Line into its word(s), keyed by address.
 
-    Two lines resolving to the same address (overlapping `.org` ranges) is
+    Two words resolving to the same address (overlapping `.org` ranges, or a
+    multi-word `.ascii`/`.asciz` payload running into a following line) is
     detected here directly, as a dict-key collision, rather than as a
     separate range-overlap check.
     """
     words = {}
     for line in lines:
-        if line.address in words:
-            logger.error(
-                "Address collision at word 0x%X (overlapping .org ranges): %s",
-                line.address,
-                line.text,
-            )
-            return None
-        bytecode = encode_line(line, labels)
-        if bytecode is None:
-            return None
-        logger.debug("0x%X: %s -> 0x%08X", line.address, line.text, bytecode)
-        words[line.address] = bytecode
+        if line.data is not None:
+            word_list = isa.pack_bytes_little_endian(line.data)
+        else:
+            bytecode = encode_line(line, labels)
+            if bytecode is None:
+                return None
+            word_list = [bytecode]
+        for offset, word in enumerate(word_list):
+            address = line.address + offset
+            if address in words:
+                logger.error(
+                    "Address collision at word 0x%X (overlapping .org ranges): %s",
+                    address,
+                    line.text,
+                )
+                return None
+            logger.debug("0x%X: %s -> 0x%08X", address, line.text, word)
+            words[address] = word
     return words
 
 

@@ -113,6 +113,77 @@ def parse_int(value_str):
     return int_value
 
 
+# `\xHH` (arbitrary byte) is handled separately below; these are the named
+# single-character escapes, C's common subset.
+_STRING_ESCAPES = {
+    "n": 0x0A,
+    "t": 0x09,
+    "r": 0x0D,
+    "0": 0x00,
+    "a": 0x07,
+    "b": 0x08,
+    "f": 0x0C,
+    "v": 0x0B,
+    "\\": 0x5C,
+    '"': 0x22,
+    "'": 0x27,
+}
+
+
+def parse_string_literal(text):
+    """Parses a double-quoted string literal starting at `text[0]` (which
+    must be '"'), with C-style escapes (\\n \\t \\r \\0 \\a \\b \\f \\v \\\\
+    \\" \\' and \\xHH for an arbitrary byte value). Returns `(data,
+    remainder)` -- the decoded bytes, and whatever trailing text follows the
+    closing quote (stripped) -- or `(None, None)` if `text` isn't a valid,
+    terminated string literal.
+    """
+    if not text or text[0] != '"':
+        return None, None
+    data = bytearray()
+    i = 1
+    n = len(text)
+    while i < n:
+        c = text[i]
+        if c == '"':
+            return bytes(data), text[i + 1 :].strip()
+        if c == "\\":
+            if i + 1 >= n:
+                return None, None
+            esc = text[i + 1]
+            if esc == "x":
+                hex_digits = text[i + 2 : i + 4]
+                if len(hex_digits) != 2 or any(
+                    ch not in "0123456789abcdefABCDEF" for ch in hex_digits
+                ):
+                    return None, None
+                data.append(int(hex_digits, 16))
+                i += 4
+                continue
+            if esc not in _STRING_ESCAPES:
+                return None, None
+            data.append(_STRING_ESCAPES[esc])
+            i += 2
+            continue
+        if ord(c) > 0xFF:
+            return None, None
+        data.append(ord(c))
+        i += 1
+    return None, None
+
+
+def pack_bytes_little_endian(data):
+    """Packs `data` into 32-bit words, 4 bytes per word, little-endian (a
+    word's first byte sits in its least-significant byte position). The
+    final word is zero-padded on its high end if `len(data)` isn't a
+    multiple of 4.
+    """
+    return [
+        int.from_bytes(data[i : i + 4].ljust(4, b"\x00"), byteorder="little")
+        for i in range(0, len(data), 4)
+    ]
+
+
 def pack_fields(instr_class, values):
     layout = FIELD_LAYOUT[instr_class]
     word = instr_class.value << 28
