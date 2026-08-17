@@ -46,6 +46,19 @@ filesets:
     files:
       - tb/run.py: {file_type: user, copyto: .}
 
+  # Separate from tb_run: bridges uart0's real serial pins to a Unix
+  # socket instead of running to a fixed cycle count -- see
+  # hydrogen_interactive_harness.cpp and `just run-interactive`.
+  # hydrogen_interactive_tb_top hosts the virtual RX/TX phys the harness
+  # talks to (see that file for why -- moving UART bit-level timing into
+  # Verilator instead of bit-banging it from software). Native C++ driver,
+  # not cocotb -- see the `interactive` target below and the harness file's
+  # header comment for why.
+  tb_interactive:
+    files:
+      - tb/hydrogen_interactive_tb_top.sv: {file_type: systemVerilogSource}
+      - tb/hydrogen_interactive_harness.cpp: {file_type: cppSource}
+
 targets:
   # Needed so other cores can depend on `:hydrogen:hydrogen` (see e.g. a
   # future full-SoC top wiring in peripherals).
@@ -98,6 +111,37 @@ targets:
       cocotb_module: run
       verilator_options: [--trace-fst]
       run_options: [--trace]
+
+  # Open-ended interactive session, driven by `just run-interactive` --
+  # see hydrogen_interactive_harness.cpp. No tracing: the session has no
+  # fixed endpoint to review a waveform against, and the file would grow
+  # unbounded. No cocotb_module: unlike every other sim target here, this
+  # one builds and runs hydrogen_interactive_harness.cpp directly as a
+  # plain Verilator C++ testbench -- see that file's header comment for
+  # why (cocotb's own VPI/scheduler glue measured as the dominant
+  # remaining bottleneck for this specific, non-verification target; a raw
+  # C++ toggle loop over the same design measured ~13M cycles/sec vs.
+  # cocotb's ~390k). sim/coverage/run stay on cocotb, unaffected.
+  # Speed-optimized unlike the other sim targets above (which default to
+  # Verilator's -Os/no-optimization for faster compile turnaround during
+  # RTL iteration): an interactive session's compile happens once but then
+  # runs for the whole session, so trading longer Verilator/g++ build time
+  # for faster execution is the right call here specifically. -O3 is
+  # Verilator's own model-scheduling optimization (verilator_options);
+  # OPT_FAST/OPT_GLOBAL (make_options) separately control the GCC/Clang
+  # optimization level used to compile Verilator's generated C++, which
+  # defaults to -Os (see OSS CAD Suite's verilated.mk); CXX/LINK=clang++
+  # measured a small but consistent win over GCC at this optimization
+  # level. Runtime tuning (throttle rate, polling/reporting cadence) lives
+  # in tb/interactive.conf, read fresh at startup -- no rebuild needed.
+  interactive:
+    filesets: [rtl, tb_interactive]
+    toplevel: hydrogen_interactive_tb_top
+    flow: sim
+    flow_options:
+      tool: verilator
+      verilator_options: [-O3, --threads, "1"]
+      make_options: [OPT_FAST=-O3, OPT_GLOBAL=-O3, CXX=clang++, LINK=clang++]
 
   # `just elaborate` points Yosys (slang frontend) at these staged
   # sources -- see regfile.core's `elaborate` target for the general

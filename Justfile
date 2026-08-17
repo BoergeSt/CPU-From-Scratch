@@ -290,6 +290,47 @@ run program cycles="1000":
         -v "{{justfile_directory()}}":/work:Z -w /work fpga-toolchain:dev \
         fusesoc --cores-root machines --cores-root common run --target=run :hydrogen:hydrogen
 
+# Run a program interactively: uart0's real TX/RX pins are bridged to a
+# Unix socket (dev/uart0.sock, see tb/hydrogen_interactive_harness.cpp),
+# which a host-side
+# `socat` exposes as a real PTY (dev/uart0.pty) -- attach with e.g.
+# `screen dev/uart0.pty` in another terminal. The container sim runs in
+# the background so socat can run in the foreground; Ctrl-C on socat ends
+# the session and the trap below tears down the background sim and socket
+# file. `dev/` is git-ignored, mirroring `build/`.
+run-interactive program:
+    #!/usr/bin/env sh
+    set -eu
+    case "{{program}}" in
+        *.S|*.s)
+            bin="{{without_extension(program)}}.bin"
+            just assemble "{{program}}"
+            ;;
+        *)
+            bin="{{program}}"
+            ;;
+    esac
+    mkdir -p dev
+    rm -f dev/uart0.sock dev/uart0.pty
+    podman run --rm --userns=keep-id -e HOME=/tmp \
+        -e HYDROGEN_PROGRAM=/work/"$bin" \
+        -v "{{justfile_directory()}}":/work:Z -w /work fpga-toolchain:dev \
+        fusesoc --cores-root machines --cores-root common run --target=interactive :hydrogen:hydrogen &
+    sim_pid=$!
+    trap 'kill "$sim_pid" 2>/dev/null; rm -f dev/uart0.sock dev/uart0.pty' EXIT INT TERM
+    echo "waiting for uart0 socket..."
+    while [ ! -S dev/uart0.sock ]; do
+        if ! kill -0 "$sim_pid" 2>/dev/null; then
+            echo "simulation exited before uart0 came up" >&2
+            exit 1
+        fi
+        sleep 0.2
+    done
+    echo "uart0 ready -- attaching PTY at dev/uart0.pty"
+    echo "in another terminal: screen dev/uart0.pty"
+    socat PTY,link=dev/uart0.pty,raw,echo=0 UNIX-CONNECT:dev/uart0.sock
+    wait "$sim_pid"
+
 # Open the trace from the most recent `just run`.
 view-run:
     #!/usr/bin/env sh
