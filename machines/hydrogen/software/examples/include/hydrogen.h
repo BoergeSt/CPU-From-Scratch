@@ -21,5 +21,4 @@
 #define UART_SETTINGS_DIVISOR_SHIFT	0x3
 #define UART_FIFO_SIZE			128
 
-#define UART_DIV 5 // 10MHz / 16 oversampling / 115200 target baud = 5.4 -- does not matter for simulation as receiver uses the same div.
-
+#define UART_DIV 2 // For simulation this value does not matter. choosing 2 for shorter runs
