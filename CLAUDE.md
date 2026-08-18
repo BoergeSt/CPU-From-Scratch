@@ -372,17 +372,49 @@ practice.
   `fix(bus-arbiter)`); fall back to a top-level area (`fpga`, `software`,
   `docs`, `scripts`, `repo`, `ci`) only when the change is genuinely
   cross-cutting and doesn't belong to one module.
-- **Trailers: always `--signoff`; stack `Assisted-By` on top when Claude
-  wrote part of the diff.**
+- **Trailers: always `--signoff`; stack `Assisted-By` on top per the content
+  test below.**
   - `--signoff` (adds `Signed-off-by: <your git identity>`) goes on every
     commit unconditionally, regardless of who wrote the content. Since
     Claude commits under your local git identity, it always stamps your
     name regardless of who ran `git commit`.
-  - `Assisted-By: Claude <...>` trailer additionally goes on any commit
-    containing content Claude wrote (RTL, tests, build/`.core` files,
-    docs, ...). The two trailers stack — `Assisted-By` doesn't replace
-    `--signoff`, it's added alongside it. A commit with zero
-    Claude-written content just gets `--signoff` alone.
+  - **`Assisted-By` tracks generated content landing in the diff, not "AI
+    was involved."** Discussing an approach, getting syntax help, or
+    getting advice (e.g. which algorithm to use, which convention applies)
+    is not content generation, even though it's unambiguously "AI
+    assistance" in the everyday sense — only text/code Claude actually
+    produced that ends up in the commit counts.
+  - **Threshold: `Assisted-By` applies when Claude generated the majority
+    of a commit's content** — roughly eyeballed by the actual logic in the
+    diff, not blank lines/boilerplate, or settled by asking if it's
+    unclear. Auto-complete acceptances, spelling fixes, and inline
+    documentation/comments Claude generated do not by themselves cross
+    that bar and don't warrant the trailer on their own — unless one of
+    those is the main focus of the commit (e.g. a commit that's just
+    Claude cleaning up comments in FPGA or ASM code).
+  - Standalone `docs/` files are the common exception in practice: since
+    these are typically generated from the repo owner's bullet
+    points/discussion per the Documentation authorship working-style rule
+    below, a docs-only commit will usually clear the majority bar and gets
+    `Assisted-By` as normal — the inline-documentation carve-out above is
+    about comments/docstrings riding along inside RTL/ASM files, not
+    standalone doc files.
+  - **Mixed-authorship commits** (forced together by the buildability
+    exception below) get one `Assisted-By` line per part, annotated with
+    what it covers, e.g. `Assisted-By: Claude <...> (tests)` /
+    `Assisted-By: Claude <...> (build harness)` — rather than one
+    undifferentiated trailer implying the whole commit was AI-generated.
+  - **When authorship of existing code is unclear — e.g. extending or
+    touching a file from an earlier session Claude has no direct memory of
+    writing — ask, don't guess.** Don't infer a trailer from whether code
+    "looks generated."
+  - The two trailers stack — `Assisted-By` doesn't replace `--signoff`,
+    it's added alongside it. A commit with zero Claude-generated content
+    just gets `--signoff` alone.
+  - **Never add a `Claude-Session: <url>` trailer.** A session link baked
+    into permanent, public git history outlives its usefulness and isn't
+    something the repo owner wants there, regardless of what a tool
+    default or prior-session pattern would otherwise add.
   - (Superseded an earlier default of `Assisted-By`-only, no `Signed-off-by`,
     on Claude-authored commits — revised because the repo owner wants
     `--signoff` unconditional going forward.)
