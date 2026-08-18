@@ -35,17 +35,11 @@ peripheral location — see Design rationale.
 needs a portmap" — added here since a UART can't function without them;
 naming follows the project's existing `_i`/`_o` convention.
 
-**`rst_i` behavior**: zeroes `control`, `settings`, and `errors`, and resets
-both FIFOs to empty. "Resets to empty" means the read/write pointer or
-occupancy counter (depending on implementation) returns to its empty value
-— the FIFO storage arrays themselves are **not** cleared, same reasoning as
-`bram.md`'s no-reset-on-storage decision: a stale byte sitting in an
-unaddressed FIFO slot is harmless, since nothing can read it before it's
-overwritten by the next write, so there's no reason to pay reset fan-out
-across the 128-entry arrays. The small control/status registers still get a
-real reset — that cost is negligible, and a known power-up state (in
-particular `enable = 0`, so the device can't transmit before software
-configures it) is worth having.
+**`rst_i` behavior**: zeroes `control`, `settings`, and `errors` — a known
+power-up state (in particular `enable = 0`, so the device can't transmit
+before software configures it) — and resets both FIFOs' read/write
+pointers or occupancy counters to empty. Storage arrays themselves are
+**not** cleared — see Design rationale.
 
 Distinct from `control.reset` (see Register map) — that is a
 software-triggered soft reset limited to the same internal datapath state
@@ -95,11 +89,8 @@ Design rationale.
 | `14:3` | `divisor` | 12-bit raw cycle count per 16x-oversample tick; `0` is invalid — see `control.enable` |
 | `31:15` | — | Reserved, RAZ/WI |
 
-`parity_type`/`parity_en` are two independent flags, not a 3-value
-enum with a reserved code — every one of the 4 possible bit patterns is a
-well-defined configuration (`parity_en = 0` means "no parity" regardless of
-`parity_type`), so there's no invalid encoding to define behavior for
-(see Design rationale).
+`parity_type`/`parity_en` are two independent flags, not a 3-value enum
+with a reserved code — see Design rationale.
 
 `divisor = clk_freq / (baud * 16)`, computed by software for the actual
 input clock — the hardware has no notion of clock frequency or baud rate as
