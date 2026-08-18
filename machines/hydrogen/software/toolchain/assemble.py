@@ -247,7 +247,11 @@ def encode_line(line, labels):
         if len(parts) != 2:
             logger.error("Invalid .word directive: %s", text)
             return None
-        value = isa.parse_int(parts[1].strip())
+        operand = parts[1].strip()
+        if operand.startswith("'"):
+            value = isa.parse_char_literal(operand)
+        else:
+            value = isa.parse_int(operand)
         if value is None:
             logger.error("Invalid .word value: %s", text)
             return None
