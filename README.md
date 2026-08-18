@@ -1,14 +1,13 @@
 # CPU-from-scratch (32-bit)
 
 A from-scratch 32-bit CPU/system project — custom ISA, custom bus, no vendor
-IP. See [`CLAUDE.md`](CLAUDE.md) for the full design rationale, roadmap, and
-repo conventions.
+IP. Built for fun, as a personal challenge to understand how a CPU and the
+system around it actually work, from the gates up.
 
 ## Disclaimer
 
-This is a hobby project, built for learning purposes. It is provided as-is,
-with no warranty and no guarantee of correctness, safety, or fitness for any
-purpose — see [`LICENSE`](LICENSE) for the full terms.
+Provided as-is, with no warranty and no guarantee of correctness, safety, or
+fitness for any purpose — see [`LICENSE`](LICENSE) for the full terms.
 
 ## What's in here
 
@@ -19,13 +18,19 @@ purpose — see [`LICENSE`](LICENSE) for the full terms.
 - **Machine code** (`machines/*/software/examples/`) — example/diagnostic
   programs written in that assembly, actually running on the simulated CPU.
 
-**Authorship:** the HDL and the machine-code example programs above were
-written entirely by hand, with no AI-generated content in either. The
-assembler started the same way and was later extended and refactored with
-AI assistance. Tests (`rtl/tb/`), the build harness (FuseSoC cores,
-`Justfile`), and documentation (`docs/`, inline comments) were built by, or
-with the assistance of, AI — for a hobby project, that's tooling and
-prose I'd rather not hand-write from scratch.
+## AI Policy
+
+- **RTL and the machine-code example programs** — written entirely by hand,
+  no AI-generated content. Same for the assembler's original design. This
+  is where the actual learning and challenge is, so I'm not delegating it.
+- **The assembler's later extensions, tests (`rtl/tb/`), and the build
+  harness** (FuseSoC cores, `Justfile`) — done with AI assistance, but
+  scoped to specific tasks/scenarios I define up front, not open-ended AI
+  design.
+- **Documentation** (`docs/`, inline comments) — written by AI, but the
+  content is mine: sourced from bullet points I write and an interactive
+  Q&A where I make every real design decision. AI's job is drafting and
+  organizing, not deciding.
 
 ## License
 
