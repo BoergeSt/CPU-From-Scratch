@@ -3,7 +3,7 @@
 
 .org // constants
 WaitTime: .word CLOCK_SPEED // == 1 second
-Message: .asciz "Hello %s!\r\nPrinting Percent signs (%%) also works, and if i do an unknown substitution like %f it is printed out without change!\r\nDisplaying numbers in hex (0x%x) is now also working.\r\n"
+Message: .asciz "Hello %s!\r\nPrinting Percent signs (%%) also works, and if i do an unknown substitution like %f it is printed out without change!\r\nDisplaying numbers in hex (0x%x, 0x%x, 0x%x) is now also working.\r\n"
 World_Substitution: .asciz "World"
 Number: .word 0xdeadbeef
 
@@ -15,6 +15,10 @@ Main:
 	CALL(UartSetup)
 
 Main_Loop:
+	imm_set R0, 0x0
+	PUSH(R0)
+	imm_set R0, 0x42
+	PUSH(R0)
 	load R0, [Number]
 	PUSH(R0)
 	imm_set R0, World_Substitution
