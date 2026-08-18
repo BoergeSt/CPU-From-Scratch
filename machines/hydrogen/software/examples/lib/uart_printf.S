@@ -63,10 +63,18 @@ PrintIntegerHex:
 	or R3, R0, 0
 	imm_set R5, 32
 	imm_set R4, IntegersHex_LUT
+PrintIntegerHex_Skip_Initial_Zeros:
+	sub R5, R5, 4
+	rshift R2, R3, R5
+	and R2, R2, 0xF
+	nz [PrintIntegerHex_Display], R2
+	z [PrintIntegerHex_Display], R5
+	always [PrintIntegerHex_Skip_Initial_Zeros]
 PrintIntegerHex_Loop:
 	sub R5, R5, 4
 	rshift R2, R3, R5
 	and R2, R2, 0xF
+PrintIntegerHex_Display:
 	add R2, R2, R4
 	load R0, [R2]
 	CALL(PrintCharacter)
