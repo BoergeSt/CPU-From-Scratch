@@ -221,6 +221,39 @@ same file — every floating region shares one placement, in the order it was
 written, regardless of how many times the source switches back to anchored
 placement in between.
 
+### Reserved space
+
+`.space <n>` reserves `n` *words* of address space at the current position,
+with no content of its own — for a buffer that's written at runtime rather
+than initialized by the program image (e.g. a receive buffer for a string
+read over UART, or a bootloader's serial-download target). A label placed
+right before it names the block's start address, same as any other
+directive:
+
+```
+.org 0x800
+rx_buf: .space 64   ; reserves words 0x800-0x83F for something written later
+```
+
+Unlike `.ascii`/`.asciz`, which count their operand in *bytes* and round up
+to whole words, `.space`'s operand is already in words — Hydrogen is
+word-addressed with no sub-word access (see Not yet supported below), so
+every other address in this language is in the same unit.
+
+`.space` behaves like any other directive under both anchored
+(`.org <address>`, to pin the reservation to a fixed address) and floating
+(bare `.org`) placement — nothing about it is special-cased for either.
+
+The reserved words themselves never appear in the assembled image — they
+don't extend the `.bin`'s address range the way real content would, so a
+large reservation (e.g. a multi-KB download buffer) doesn't bloat the
+output file with content nothing has written yet. This matches `bram.md`'s
+"no reset" model: reserved memory isn't zero-initialized by the assembler,
+it's simply whatever was already there. (A `.space` region that happens to
+fall *between* two ranges of real content still reads back as zero once
+loaded — not because `.space` wrote zeroes, but because any untouched
+address inside the image's already-real range defaults to zero.)
+
 ## Strings
 
 `.ascii "<text>"` and `.asciz "<text>"` emit `<text>` as packed bytes

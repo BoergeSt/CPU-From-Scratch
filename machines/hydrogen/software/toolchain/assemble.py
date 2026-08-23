@@ -64,9 +64,15 @@ class Line:
     address: int
     text: str
     # Decoded byte payload for a `.ascii`/`.asciz` line, spanning
-    # ceil(len(data) / 4) words from `address`. None for every other line
-    # (`.word`, an instruction), which occupies exactly one word.
+    # ceil(len(data) / 4) words from `address`. None for every other line.
+    # A `.word` line or an instruction occupies exactly one word; a `.space`
+    # line occupies `reserved_words` words instead (see below).
     data: bytes | None = None
+    # Nonzero only for a `.space` line: the number of words it reserves at
+    # `address`. Those words get no encoded content at all -- see
+    # `encode_lines` -- unlike `data`, which always packs to real word
+    # content.
+    reserved_words: int = 0
 
 
 def consume_labels(line, address, labels):
@@ -174,9 +180,14 @@ def tokenize(source):
     on the same line) resolve to the address of whatever follows them; every
     remaining non-blank line becomes a `Line` at the current address. A
     `.ascii`/`.asciz` line carries its decoded bytes in `Line.data` and
-    advances the address by however many words that packs into; every other
-    line advances by exactly one word. Returns (None, None) on a malformed
-    directive/label (error already logged).
+    advances the address by however many words that packs into. `.space <n>`
+    reserves `n` words (`Line.reserved_words`) at the current address without
+    emitting any content -- works the same under an anchored `.org <address>`
+    (to reserve at a fixed position) or a floating `.org` (to reserve
+    wherever floating placement puts it), since it just advances the same
+    cursor every other directive does. Every other line advances by exactly
+    one word. Returns (None, None) on a malformed directive/label (error
+    already logged).
     """
     lines = []
     labels = {}
@@ -210,6 +221,7 @@ def tokenize(source):
             floating = False
             continue
         directive = line.split(None, 1)[0].lower()
+        reserved_words = 0
         if directive in (".ascii", ".asciz"):
             split_line = line.split(None, 1)
             operand = split_line[1].strip() if len(split_line) == 2 else ""
@@ -220,10 +232,22 @@ def tokenize(source):
             if directive == ".asciz":
                 data += b"\x00"
             word_count = (len(data) + 3) // 4
+        elif directive == ".space":
+            split_line = line.split(None, 1)
+            operand = split_line[1].strip() if len(split_line) == 2 else ""
+            count = isa.parse_int(operand)
+            if count is None or count < 0:
+                logger.error("Invalid .space word count: %s", line)
+                return None, None
+            data = None
+            word_count = count
+            reserved_words = count
         else:
             data = None
             word_count = 1
-        lines.append(Line(address=cursor, text=line, data=data))
+        lines.append(
+            Line(address=cursor, text=line, data=data, reserved_words=reserved_words)
+        )
         if floating:
             floating_address += word_count
         else:
@@ -280,28 +304,45 @@ def encode_lines(lines, labels):
     Two words resolving to the same address (overlapping `.org` ranges, or a
     multi-word `.ascii`/`.asciz` payload running into a following line) is
     detected here directly, as a dict-key collision, rather than as a
-    separate range-overlap check.
+    separate range-overlap check. A `.space` line's reserved words
+    participate in that same collision check but are deliberately never
+    added to the returned `words` dict -- unlike a gap between two ordinary
+    lines (which `pack_image` fills with 0), a `.space` reservation must not
+    even shift `pack_image`'s address bounds, since it may be sized for
+    something like a serial-download bootloader buffer at the top of BRAM,
+    far past the actual program -- writing that as literal zero words in the
+    image would bloat it to cover memory nothing has initialized yet.
     """
     words = {}
+    reserved = set()
     for line in lines:
-        if line.data is not None:
+        if line.reserved_words:
+            word_list = None
+            span = line.reserved_words
+        elif line.data is not None:
             word_list = isa.pack_bytes_little_endian(line.data)
+            span = len(word_list)
         else:
             bytecode = encode_line(line, labels)
             if bytecode is None:
                 return None
             word_list = [bytecode]
-        for offset, word in enumerate(word_list):
+            span = 1
+        for offset in range(span):
             address = line.address + offset
-            if address in words:
+            if address in words or address in reserved:
                 logger.error(
                     "Address collision at word 0x%X (overlapping .org ranges): %s",
                     address,
                     line.text,
                 )
                 return None
-            logger.debug("0x%X: %s -> 0x%08X", address, line.text, word)
-            words[address] = word
+            if word_list is None:
+                reserved.add(address)
+            else:
+                word = word_list[offset]
+                logger.debug("0x%X: %s -> 0x%08X", address, line.text, word)
+                words[address] = word
     return words
 
 
