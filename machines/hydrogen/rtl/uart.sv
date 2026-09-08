@@ -89,6 +89,11 @@ module uart_phy_tx (
   logic state_last_tick;
   logic reset_counter;
 
+  logic parity_en_q;
+  uart_parity_e parity_type_q;
+  uart_stopbit_e stop_bit_q;
+  logic [11:0] divisor_q;
+
   uart_tx_state_e state;
 
   always_comb begin
@@ -97,13 +102,13 @@ module uart_phy_tx (
       UART_TX_STATE_IDLE:     tx_o = 1'b1;
       UART_TX_STATE_START:    tx_o = 1'b0;
       UART_TX_STATE_BYTE_OUT: tx_o = 1'(data_q >> bit_counter);
-      UART_TX_STATE_PARITY:   tx_o = parity_type_i ? ~^data_q : ^data_q;
+      UART_TX_STATE_PARITY:   tx_o = parity_type_q ? ~^data_q : ^data_q;
       UART_TX_STATE_STOP:     tx_o = 1'b1;
     endcase
   end
 
   assign pull_data_o = state == UART_TX_STATE_START && supersample_counter == 'h0;
-  assign count_to = (16'(divisor_i) << 4) - 1;
+  assign count_to = (16'(divisor_q) << 4) - 1;
   assign state_last_tick = supersample_counter == count_to;
   assign reset_counter = rst_i || state == UART_TX_STATE_IDLE;
 
@@ -123,7 +128,14 @@ module uart_phy_tx (
           state <= UART_TX_STATE_START;
         end
         UART_TX_STATE_START: begin
-          if (supersample_counter == 0) data_q <= data_i;
+          if (supersample_counter == 0) begin
+            data_q <= data_i;
+            parity_en_q <= parity_en_i;
+            parity_type_q <= parity_type_i;
+            stop_bit_q <= stop_bit_i;
+            divisor_q <= divisor_i;
+          end
+
           if (state_last_tick) begin
             state <= UART_TX_STATE_BYTE_OUT;
             bit_counter <= 'h0;
@@ -133,13 +145,13 @@ module uart_phy_tx (
           if (state_last_tick) begin
             bit_counter <= bit_counter + 'b1;  // overflow handles resetting this nicely
             if (bit_counter == 'h7)
-              state <= parity_en_i ? UART_TX_STATE_PARITY : UART_TX_STATE_STOP;
+              state <= parity_en_q ? UART_TX_STATE_PARITY : UART_TX_STATE_STOP;
           end
         end
         UART_TX_STATE_PARITY: if (state_last_tick) state <= UART_TX_STATE_STOP;
         UART_TX_STATE_STOP: begin
           if (state_last_tick) begin
-            if (stop_bit_i == UART_ONE_STOPBIT || bit_counter == 'h1)
+            if (stop_bit_q == UART_ONE_STOPBIT || bit_counter == 'h1)
               state <= enable_i ? UART_TX_STATE_START : UART_TX_STATE_IDLE;
             else bit_counter <= bit_counter + 'b1;
           end
