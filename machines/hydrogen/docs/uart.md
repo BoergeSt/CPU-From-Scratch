@@ -148,6 +148,14 @@ stays set — the new error wins over the clear. See Design rationale.
   transmitting runs to completion (through its stop bit) regardless of
   `enable`; only the *next* frame is prevented from starting. See Design
   rationale for why the two directions make opposite choices here.
+- **A TX frame already in flight finishes with the `divisor`/`parity`/
+  `stop-bits` values it started with, even if `settings` is rewritten (and
+  `enable` re-raised) before that frame's stop bit goes out.** `enable`
+  dropping unblocks `settings` writes immediately, without waiting for a
+  draining TX frame to actually finish (previous bullet) — so a disable,
+  reconfigure, re-enable sequence can otherwise land while a byte is still
+  on the wire. See Design rationale for why RX doesn't need the same
+  guarantee spelled out.
 - **`rst_i` and `control.reset` override the above: both stop TX and RX
   immediately, with no drain-to-completion for either direction.** Unlike
   `enable` dropping, a reset is an unconditional hard stop, not a graceful
@@ -257,6 +265,22 @@ stays set — the new error wins over the clear. See Design rationale.
   other end. Finishing costs nothing (the byte was already committed out of
   the FIFO before transmission started) and avoids putting a malformed
   signal on the wire. Only the *next* frame is gated on `enable`.
+- **`uart_phy_tx` latches `divisor`/`parity_en`/`parity_type`/`stop_bits`
+  into internal `_q` copies once per frame (same point as the data byte
+  itself: frame start, first oversample tick), and uses only those latched
+  copies for the rest of the frame — never the live `settings` values
+  directly.** This is what makes the previous bullet's guarantee actually
+  hold: `enable` dropping unblocks `settings` writes on the same cycle it
+  takes effect, which — because TX drains instead of aborting — can be many
+  cycles before the in-flight frame reaches its stop bit. Without the latch,
+  a `settings` rewrite landing in that window would change the divisor (or
+  parity/stop-bit) comparisons an already-started frame is judged against
+  mid-frame, corrupting exactly the frame "finishing" was meant to protect.
+  RX doesn't need an equivalent latch: it forces itself back to its
+  `ERROR` state (see disarm bullet below) on the very same cycle `enable`
+  first reads low, which is the same cycle that unblocks `settings` writes
+  — so a live `settings` read can never observe a value that changed while
+  RX was still actively using it.
 - **RX-abort-on-disable reuses the same disarm mechanism as reset, rather
   than adding a separate one.** `enable` dropping mid-frame is just one more
   case where the receiver can no longer trust its position in the frame, so
