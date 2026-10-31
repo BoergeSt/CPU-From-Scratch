@@ -157,8 +157,16 @@ int main(int argc, char** argv) {
     Vhydrogen_interactive_tb_top* top = new Vhydrogen_interactive_tb_top(contextp);
 
     std::vector<uint32_t> words = LoadProgram(program_path);
+    // Verilator doesn't bounds-check unpacked-array indexing, so an
+    // oversized image would write past the BRAM array into simulator memory.
+    auto& bram = top->rootp->hydrogen_interactive_tb_top__DOT__core__DOT__bram__DOT__bram;
+    if (words.size() > bram.size()) {
+        fprintf(stderr, "interactive: program %s is %zu words, BRAM holds only %zu\n",
+                program_path, words.size(), static_cast<size_t>(bram.size()));
+        exit(1);
+    }
     for (size_t i = 0; i < words.size(); ++i) {
-        top->rootp->hydrogen_interactive_tb_top__DOT__core__DOT__bram__DOT__bram[i] = words[i];
+        bram[i] = words[i];
     }
     fprintf(stderr, "interactive: loaded %zu words from %s\n", words.size(), program_path);
 
