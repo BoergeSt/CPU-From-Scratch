@@ -5,9 +5,9 @@ for a fixed number of cycles, logging final PC/register state.
 Not a directed test -- no assertions, just execution + observation, driven
 by `just run`. Preloading is hierarchical, same as test_hydrogen.py's
 load_program: nothing external can drive the I-bus, the core itself owns
-it. Assumes the image starts at word address 0x0 (assembler.md's
-convention: every program's earliest `.org` is 0x0, holding the
-error/halt handler).
+it. The image's first word is loaded at word address 0x0, which the
+assembler guarantees regardless of a program's earliest `.org` (see
+assembler.md).
 """
 
 import os
