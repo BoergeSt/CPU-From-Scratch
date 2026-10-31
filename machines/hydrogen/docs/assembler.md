@@ -21,7 +21,10 @@ just assemble <file>
 ```
 
 Preprocesses the file, then assembles it into a raw binary machine-code
-image.
+image. The image always starts at word address 0x0 and runs up to the
+highest emitted word, with any unemitted address in between zero-filled —
+so a program whose first content sits at e.g. `.org 0x10` still loads at
+0x10, not 0x0.
 
 ## Comments
 

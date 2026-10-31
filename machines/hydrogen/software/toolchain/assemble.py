@@ -347,11 +347,17 @@ def encode_lines(lines, labels):
 
 
 def pack_image(words):
+    """Packs `words` into a raw little-endian image whose first word is
+    always word address 0x0 -- the runners load an image's first word at
+    BRAM address 0, so starting at the lowest emitted address instead would
+    silently shift everything down. Unemitted addresses below the highest
+    emitted one are zero-filled.
+    """
     if not words:
         return bytearray()
-    lo, hi = min(words), max(words)
+    hi = max(words)
     image = bytearray()
-    for address in range(lo, hi + 1):
+    for address in range(hi + 1):
         image += words.get(address, 0).to_bytes(4, byteorder="little")
     return image
 
