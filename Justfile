@@ -14,7 +14,14 @@ assemble file:
     set -eu
     out="{{without_extension(file)}}.bin"
     map="{{without_extension(file)}}.map"
-    gcc -E -P -x c "{{file}}" | python3 machines/hydrogen/software/toolchain/assemble.py - -o "$out" -m "$map"
+    # Preprocess to a temp file rather than piping straight into the
+    # assembler: POSIX sh has no pipefail, so a pipe would only report the
+    # assembler's exit status and a gcc failure (e.g. a missing #include)
+    # would still yield a partial image and report success.
+    pre="$(mktemp)"
+    trap 'rm -f "$pre"' EXIT
+    gcc -E -P -x c "{{file}}" > "$pre"
+    python3 machines/hydrogen/software/toolchain/assemble.py "$pre" -o "$out" -m "$map"
     echo "assembled: $out (map: $map)"
 
 # Run a FuseSoC target against a core -- internal helper, use `lint`/`sim` below.
